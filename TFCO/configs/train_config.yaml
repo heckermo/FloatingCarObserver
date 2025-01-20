@@ -1,0 +1,66 @@
+dataset_path: ../FCO_modeling/tfco_datasets
+dataset_name:
+    - 5382_monocon_05
+train_split:
+    - - - ':'
+        - 0.7
+      - - 0.8
+        - ':'
+    
+val_split:
+    - - - 0.7
+        - 0.8
+test_split:
+    - - - 0.7
+        - 0.8
+max_vehicles: 100
+radius: 100
+centerpoint: null
+sequence_len: 10
+min_timesteps_seen: 3
+num_epochs: 100
+batch_size: 128
+scheduler:
+    type: default
+    init_lr: 0.0001
+    step_size: 5000
+    gamma: 0.9
+distance_weight: 400.0
+class_weight: 1.0
+load_complete_model: null
+validation_frequency: 1
+save_frequency: 25
+
+default_scheduler_config:
+    type: default
+    init_lr: 0.0001
+    step_size: 5000
+    gamma: 0.9
+
+cosine_scheduler_config:
+    type: cosine
+    startup_steps: 5000
+    min_lr: 1e-6
+
+masked_transformer_config:
+    full_attention: false
+    vehicle_only_attention: false
+    embed_dim: 64
+    num_heads: 4
+    num_layers: 2
+    dropout: 0.1
+    use_pos_embed: true
+    use_type_embed: false
+
+network_configs:
+    MaskedTransformer: 
+        full_attention: false
+        vehicle_only_attention: false
+        embed_dim: 64
+        num_heads: 4
+        num_layers: 2
+        dropout: 0.1
+        use_pos_embed: true
+        use_type_embed: false
+
+

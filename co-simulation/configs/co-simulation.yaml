@@ -1,0 +1,27 @@
+fco_penetration_rate:
+  kitti-1: 0
+  kitti-4: 1
+  monocon-1: 0
+  monocon-4: 0
+  no_sensor: 0
+  opv2v: 0
+map_name: Town01
+weather: ClearNoon
+recording_frequency: 5
+recording_length: 10000
+sensor_attachments: dynamic
+step_length: 0.5
+sumo:
+  record_bev: false
+  sumo_gui: false
+  sumo_host: null
+  sumo_port: null
+carla:
+  host: localhost
+  port: 3000
+sync:
+  sync_vehicle_all: false
+  sync_vehicle_color: false
+  sync_vehicle_lights: false
+warmup_time: 100
+start_time: 0

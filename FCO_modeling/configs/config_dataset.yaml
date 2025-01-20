@@ -1,0 +1,130 @@
+# Specify parameters for the general dataset generation
+dataset_general:
+  dataset_filename: 'init'
+  pedestrian_route_file: null
+  bike_route_file: null
+  vehicle_route_file: 'motorized_routes_2020-09-16_24h_dist.rou.xml'
+  net_file: 'ingolstadt_24h.net.xml'
+  config_file: '24h_sim.sumocfg'
+  poly_path: '/home/jeremias/sumo_detector/SUMO_detector_plus/sumo_sim/ingolstadt.poly.xml'
+  start_time: 32400  # 9 AM in seconds
+  end_time: 43200    # 12 PM in seconds
+  simulation_jumps: 10
+  dataset_size: 5000000
+
+# Specify the intersections for the dataset generation
+dataset_intersection:
+  - intersection_name: 'i3040'
+    intersection_center: [6728.80, 5315.08]
+    intersection_radius: 125
+  - intersection_name: 'i2'
+    intersection_center: [7000, 5400]
+    intersection_radius: 125
+  - intersection_name: 'i3'
+    intersection_center: [6775, 5023]
+    intersection_radius: 125
+  - intersection_name: 'i4'
+    intersection_center: [6433, 5095]
+    intersection_radius: 125
+  - intersection_name: 'i5'
+    intersection_center: [6241.30, 5330.73]
+    intersection_radius: 125
+  - intersection_name: 'i6'
+    intersection_center: [4816.45, 4772.60]
+    intersection_radius: 125
+  - intersection_name: 'i7'
+    intersection_center: [6858.46, 3863.03]
+    intersection_radius: 125
+  - intersection_name: 'i8'
+    intersection_center: [7261.91, 3642.21]
+    intersection_radius: 125
+  - intersection_name: 'i9'
+    intersection_center: [6885.20, 3442.32]
+    intersection_radius: 125
+  - intersection_name: 'i10'
+    intersection_center: [6245.93, 3526.06]
+    intersection_radius: 125
+  - intersection_name: 'i11'
+    intersection_center: [6393.60, 3034.64]
+    intersection_radius: 125
+  - intersection_name: 'i12'
+    intersection_center: [6531.74, 2227.17]
+    intersection_radius: 125
+  - intersection_name: 'i13'
+    intersection_center: [6698.74, 1812.24]
+    intersection_radius: 100
+  - intersection_name: 'i14'
+    intersection_center: [8951.79, 2580.56]
+    intersection_radius: 125
+  - intersection_name: 'i15'
+    intersection_center: [7464.28, 6874.15]
+    intersection_radius: 125
+  - intersection_name: 'i16'
+    intersection_center: [5047.73, 6160.78]
+    intersection_radius: 125
+  - intersection_name: 'i17'
+    intersection_center: [4844.29, 6539.18]
+    intersection_radius: 125
+  - intersection_name: 'i18'
+    intersection_center: [4004.98, 6142.28]
+    intersection_radius: 125
+  - intersection_name: 'i19'
+    intersection_center: [3534.02, 5870.32]
+    intersection_radius: 125
+  - intersection_name: 'i20'
+    intersection_center: [3045.43, 5300.65]
+    intersection_radius: 125
+  - intersection_name: 'i21'
+    intersection_center: [2169.54, 6044.31]
+    intersection_radius: 125
+  - intersection_name: 'i23'
+    intersection_center: [3572.63, 4365.03]
+    intersection_radius: 125
+  - intersection_name: 'i24'
+    intersection_center: [2465.79, 4316.21]
+    intersection_radius: 125
+  - intersection_name: 'i25'
+    intersection_center: [6720.69, 1763.57]
+    intersection_radius: 75
+  - intersection_name: 'i26'
+    intersection_center: [7210.72, 654.56]
+    intersection_radius: 125
+  - intersection_name: 'i27'
+    intersection_center: [9567.07, 1157.69]
+    intersection_radius: 125
+  - intersection_name: 'i28'
+    intersection_center: [9340.57, 1620.56]
+    intersection_radius: 125
+  - intersection_name: 'i29'
+    intersection_center: [9155.80, 1877.31]
+    intersection_radius: 125
+  - intersection_name: 'i30'
+    intersection_center: [7353.74, 2142.82]
+    intersection_radius: 125
+  - intersection_name: 'i32'
+    intersection_center: [7695.70, 3369.70]
+    intersection_radius: 125
+  - intersection_name: 'i33'
+    intersection_center: [8743.63, 5097.71]
+    intersection_radius: 125
+  - intersection_name: 'i34'
+    intersection_center: [8618.34, 5461.69]
+    intersection_radius: 125
+  - intersection_name: 'i35'
+    intersection_center: [8252.48, 5662.61]
+    intersection_radius: 125
+  - intersection_name: 'i36'
+    intersection_center: [7994.85, 5886.46]
+    intersection_radius: 125
+  - intersection_name: 'i37'
+    intersection_center: [7313.61, 6035.71]
+    intersection_radius: 125
+  - intersection_name: 'i38'
+    intersection_center: [5548.47, 4928.97]
+    intersection_radius: 125
+  - intersection_name: 'i39'
+    intersection_center: [5172.44, 4800.30]
+    intersection_radius: 125
+  - intersection_name: 'i40'
+    intersection_center: [3548.10, 4982.90]
+    intersection_radius: 125

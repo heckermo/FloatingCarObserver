@@ -1,0 +1,14 @@
+distance_inference:
+  run_inference: false
+emulation_inference:
+  create_dataset: false
+  run_inference: false
+  weights_path: cosimulation_monocon_new
+inference:
+  detector: monocon
+  run_inference: false
+  weights_path: 3D-Detection/algorithms/monocon-pytorch/trained_models/monocon_KIVI.pth
+kitti_criteria: hard
+kitti_inference:
+  run_inference: false
+store_inference_results: false

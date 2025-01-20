@@ -1,0 +1,255 @@
+kitti-1: # standard kitti setup
+  rgb:
+    front:
+      width: 1248
+      height: 384
+      fov: 110
+      position:
+        x: 0
+        y: 0
+        z: 1.7
+      rotation:
+        yaw: 0.0
+        pitch: 0.0
+        roll: 0.0
+      depth: true
+  lidar:
+    front:
+      position:
+        x: 0
+        y: 0
+        z: 1.7
+      rotation:
+        yaw: 0.0
+        pitch: 0.0
+        roll: 0.0
+      range: 100.0
+
+kitti-4: # four camera setup in kitti style
+  rgb:
+    front:
+      width: 1248
+      height: 384
+      fov: 110
+      position:
+        x: 0
+        y: 0
+        z: 1.4
+      rotation:
+        yaw: 0.0
+        pitch: 0.0
+        roll: 0.0
+      depth: true
+    back:
+      width: 1248
+      height: 384
+      fov: 110
+      position:
+        x: 0
+        y: 0
+        z: 1.5
+      rotation:
+        yaw: 180.0
+        pitch: 0.0
+        roll: 0.0
+      depth: true
+    left:
+      width: 1248
+      height: 384
+      fov: 110
+      position:
+        x: 0
+        y: 0
+        z: 1.4
+      rotation:
+        yaw: -90.0
+        pitch: 0.0
+        roll: 0.0
+      depth: true
+    right:
+      width: 1248
+      height: 384
+      fov: 110
+      position:
+        x: 0
+        y: 0
+        z: 1.4
+      rotation:
+        yaw: 90.0
+        pitch: 0.0
+        roll: 0.0
+      depth: true
+  lidar:
+    front:
+      position:
+        x: 0
+        y: 0
+        z: 1.5
+      rotation:
+        yaw: 0.0
+        pitch: 0.0
+        roll: 0.0
+      range: 100.0
+    back:
+      position:
+        x: 0
+        y: 0
+        z: 1.5
+      rotation:
+        yaw: 180.0
+        pitch: 0.0
+        roll: 0.0
+      range: 100.0
+    left:
+      position:
+        x: 0
+        y: 0
+        z: 1.4
+      rotation:
+        yaw: -90.0
+        pitch: 0.0
+        roll: 0.0
+      range: 100.0
+    right:
+      position:
+        x: 0
+        y: 0
+        z: 1.4
+      rotation:
+        yaw: 90.0
+        pitch: 0.0
+        roll: 0.0
+      range: 100.0
+
+monocon-1: # single camera setup in kitti style
+  rgb:
+    front:
+      width: 1248
+      height: 384
+      fov: 110
+      position:
+        x: 1.6
+        y: 0
+        z: 1.7
+      rotation:
+        yaw: 0.0
+        pitch: 0.0
+        roll: 0.0
+      depth: false
+
+monocon-4: # four camera setup in kitti style
+  rgb:
+    front:
+      width: 1248
+      height: 384
+      fov: 110
+      position:
+        x: 1.6
+        y: 0
+        z: 1.7
+      rotation:
+        yaw: 0.0
+        pitch: 0.0
+        roll: 0.0
+      depth: false
+    back:
+      width: 1248
+      height: 384
+      fov: 110
+      position:
+        x: -1.6
+        y: 0
+        z: 1.7
+      rotation:
+        yaw: 180.0
+        pitch: 0.0
+        roll: 0.0
+      depth: false
+    left:
+      width: 1248
+      height: 384
+      fov: 110
+      position:
+        x: 0
+        y: -1.6
+        z: 1.7
+      rotation:
+        yaw: -90.0
+        pitch: 0.0
+        roll: 0.0
+      depth: false
+    right:
+      width: 1248
+      height: 384
+      fov: 110
+      position:
+        x: 0
+        y: 1.6
+        z: 1.7
+      rotation:
+        yaw: 90.0
+        pitch: 0.0
+        roll: 0.0
+      depth: false
+
+opv2v:
+  rgb:
+    front:
+      width: 800
+      height: 600
+      fov: 110
+      position:
+        x: 1.6
+        y: 0
+        z: 1.7
+      rotation:
+        yaw: 0.0
+        pitch: 0.0
+        roll: 0.0
+    back:
+      width: 800
+      height: 600
+      fov: 110
+      position:
+        x: -1.6
+        y: 0
+        z: 1.7
+      rotation:
+        yaw: 180.0
+        pitch: 0.0
+        roll: 0.0
+    left:
+      width: 800
+      height: 600
+      fov: 110
+      position:
+        x: 0
+        y: 1.6
+        z: 1.7
+      rotation:
+        yaw: 90.0
+        pitch: 0.0
+        roll: 0.0
+    right:
+      width: 800
+      height: 600
+      fov: 110
+      position:
+        x: 0
+        y: -1.6
+        z: 1.7
+      rotation:
+        yaw: -90.0
+        pitch: 0.0
+        roll: 0.0
+  lidar:
+    center:
+      position:
+        x: 1.6
+        y: 0
+        z: 1.7
+      rotation:
+        yaw: 0.0
+        pitch: 0.0
+        roll: 0.0
+      range: 100.0

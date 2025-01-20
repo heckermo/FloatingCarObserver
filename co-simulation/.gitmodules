@@ -1,0 +1,3 @@
+[submodule "SUMO_detector_plus"]
+	path = SUMO_detector_plus
+	url = git@github.com:jegerner/SUMO_detector_plus.git

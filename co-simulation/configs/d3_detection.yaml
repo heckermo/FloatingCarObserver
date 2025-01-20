@@ -1,0 +1,13 @@
+dataset:
+  train_paths:
+    - "kitti_datasets/Town01__ClearNoon"
+
+  test_paths:
+    - "kitti_datasets/Town01__ClearNoon"
+
+3d_detector: pointpillar
+
+training:
+  num_epochs: 100
+  pre_training_path: 'pre_trained/pointpillar_7728.pth'
+

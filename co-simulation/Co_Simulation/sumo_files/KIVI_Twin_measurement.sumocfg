@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+
+    <input>
+        <net-file value="net/KIVI_measurement.net.xml"/>
+        <route-files value="carlavtypes.rou.xml,rou/KIVI_measurement.rou.xml"/>
+    </input>
+
+    <gui_only>
+        <gui-settings-file value="viewsettings.xml"/>
+    </gui_only>
+
+    <report>
+        <collision.action value="remove"/>
+    </report>
+
+    <time>
+      <begin value="14"/>
+   </time>
+
+</configuration>

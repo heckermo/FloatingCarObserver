@@ -1,0 +1,29 @@
+network_config:
+  network_type: 'ViTEncoderDecoder' # vit/crossformer/resnet/vitencoderdecoder
+  dataset_path: 'emulation_datasets/init/*'
+  val_dataset_path: 'emulation_datasets/init/i2_'
+  test_dataset_path: 'emulation_datasets/init/i3_'
+  file_extension: 'init'
+  image_size: 256
+  vehicle_representation: 'box'
+  init_lr: 2.5e-4 # initial learning rate
+  lr_step_size: 20 # learning rate step size
+  lr_gamma: 0.9
+  batch_size: 256 # batch size
+  num_epochs: 100 # number of epochs
+  mixed_precision: false # mixed precision training
+  pretrained_path: null
+
+vit_config:
+  patch_size: 32 # number of patches, image_size must be divisible by patch_size
+  num_classes: 1 # number of classes to classify
+  dim: 256 # dimension of the transformer encoder block
+  depth: 3 # number of transformer blocks
+  heads: 4 # number of heads in multi-head attention layer
+  mlp_dim: 256 # dimension of the mlp (feedforward) layer
+  channels: 1 # number of image's channels
+  dropout: 0.1 # dropout rate (float between [0, 1], default 0)
+  emb_dropout: 0.1 # embedding dropout rate (float between [0, 1], default 0)
+  pool: 'cls' # pooling type: either 'cls_token' pooling or 'mean' pooling
+
+resnet_config: {}
