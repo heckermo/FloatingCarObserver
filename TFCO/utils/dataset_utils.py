@@ -54,8 +54,13 @@ class SequenceTfcoDataset(Dataset):
         self.max_vehicles = max_vehicles
         self.min_timesteps_seen = min_timesteps_seen
 
-        with open(os.path.join(dataset_path[0], 'config.yaml'), 'r') as f:
-            self.config = yaml.safe_load(f)
+        try:
+            with open(os.path.join(dataset_path[0], 'config.yaml'), 'r') as f:
+                self.config = yaml.safe_load(f)
+        except:
+            with open(os.path.join(dataset_path[0], 'config.pkl'), 'rb') as f:
+                self.config = pd.read_pickle(f)
+            print("Using pickle file for config")
 
         if radius is not None:
             self.radius = radius
@@ -64,7 +69,10 @@ class SequenceTfcoDataset(Dataset):
         if centerpoint is not None:
             self.center_point = centerpoint
         else:
-            self.center_point = self.config['center_point']
+            try:
+                self.center_point = self.config['center_point']
+            except:
+                self.center_point = self.config['CENTER_POINT']
 
         self.max_vehicles_counter = 0
 

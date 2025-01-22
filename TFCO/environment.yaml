@@ -5,10 +5,15 @@ channels:
 dependencies:
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=2_gnu
+  - absl-py=2.1.0=pyhd8ed1ab_0
   - bzip2=1.0.8=h5eee18b_6
+  - c-ares=1.34.2=heb4867d_0
   - ca-certificates=2024.9.24=h06a4308_0
   - geos=3.13.0=h5888daf_0
+  - grpcio=1.62.2=py310h6a678d5_0
+  - importlib-metadata=8.5.0=pyha770c72_0
   - ld_impl_linux-64=2.40=h12ee557_0
+  - libabseil=20240116.2=cxx17_h6a678d5_0
   - libblas=3.9.0=25_linux64_openblas
   - libcblas=3.9.0=25_linux64_openblas
   - libffi=3.4.4=h6a678d5_1
@@ -18,34 +23,54 @@ dependencies:
   - libgfortran-ng=14.2.0=h69a702a_1
   - libgfortran5=14.2.0=hd5240d6_1
   - libgomp=14.2.0=h77fa898_1
+  - libgrpc=1.62.2=h2d74bed_0
   - liblapack=3.9.0=25_linux64_openblas
   - libopenblas=0.3.28=pthreads_h94d23a6_0
+  - libprotobuf=4.25.3=he621ea3_0
   - libstdcxx=14.2.0=hc0a3c3a_1
   - libstdcxx-ng=11.2.0=h1234567_1
   - libuuid=1.41.5=h5eee18b_0
+  - markdown=3.6=pyhd8ed1ab_0
+  - markupsafe=3.0.2=py310h89163eb_0
   - ncurses=6.4=h6a678d5_0
   - numpy=2.1.2=py310hd6e36ab_0
   - openssl=3.3.2=hb9d3cd8_0
+  - packaging=24.1=pyhd8ed1ab_0
   - pip=24.2=py310h06a4308_0
   - python=3.10.15=he870216_1
   - python_abi=3.10=2_cp310
+  - re2=2022.04.01=h27087fc_0
   - readline=8.2=h5eee18b_0
   - setuptools=75.1.0=py310h06a4308_0
   - shapely=2.0.6=py310had3dfd6_2
+  - six=1.16.0=pyh6c4a22f_0
   - sqlite=3.45.3=h5eee18b_0
+  - tensorboard=2.18.0=pyhd8ed1ab_0
+  - tensorboard-data-server=0.7.0=py310h6c63255_2
   - tk=8.6.14=h39e8969_0
+  - werkzeug=3.1.2=pyhd8ed1ab_0
   - wheel=0.44.0=py310h06a4308_0
   - xz=5.4.6=h5eee18b_1
+  - zipp=3.20.2=pyhd8ed1ab_0
   - zlib=1.2.13=h5eee18b_1
   - pip:
+      - certifi==2024.8.30
+      - charset-normalizer==3.4.0
+      - click==8.1.7
       - contourpy==1.3.0
       - cycler==0.12.1
+      - docker-pycreds==0.4.0
+      - einops==0.8.0
       - filelock==3.16.1
       - fonttools==4.54.1
       - fsspec==2024.10.0
+      - gitdb==4.0.11
+      - gitpython==3.1.43
+      - idna==3.10
       - jinja2==3.1.4
       - kiwisolver==1.4.7
-      - markupsafe==3.0.2
+      - kornia==0.7.4
+      - kornia-rs==0.1.7
       - matplotlib==3.9.2
       - mpmath==1.3.0
       - networkx==3.4.2
@@ -61,13 +86,21 @@ dependencies:
       - nvidia-nccl-cu12==2.21.5
       - nvidia-nvjitlink-cu12==12.4.127
       - nvidia-nvtx-cu12==12.4.127
-      - packaging==24.1
+      - opencv-python==4.10.0.84
       - pandas==2.2.3
       - pillow==11.0.0
+      - platformdirs==4.3.6
+      - protobuf==3.20.3
+      - psutil==6.1.0
       - pyparsing==3.2.0
       - python-dateutil==2.9.0.post0
       - pytz==2024.2
-      - six==1.16.0
+      - pyyaml==6.0.2
+      - requests==2.32.3
+      - scipy==1.14.1
+      - sentry-sdk==2.17.0
+      - setproctitle==1.3.3
+      - smmap==5.0.1
       - sympy==1.13.1
       - torch==2.5.1
       - torchvision==0.20.1
@@ -75,4 +108,6 @@ dependencies:
       - triton==3.1.0
       - typing-extensions==4.12.2
       - tzdata==2024.2
+      - urllib3==2.2.3
+      - wandb==0.18.5
 prefix: /home/jeremias/miniconda3/envs/tfco

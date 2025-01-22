@@ -158,4 +158,6 @@ dependencies:
       - typing-extensions==4.12.2
       - tzdata==2024.2
       - wandb==0.18.5
+      - einops
+      - open3d
 prefix: /home/gerner/miniconda3/envs/test

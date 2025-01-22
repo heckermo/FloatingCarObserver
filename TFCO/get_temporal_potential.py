@@ -2,6 +2,7 @@ import logging
 import os
 import time
 import yaml
+import sys
 from datetime import datetime
 from typing import Dict, Tuple, Union, List
 sys.path.append('../TFCO')
@@ -16,16 +17,11 @@ import torch.profiler as profiler
 import time
 
 
-from configs.config import network_configs, config as cfg
 from utils.dataset_utils import TfcoDataset, SequenceTfcoDataset
 # Enable cuDNN benchmarking
 torch.backends.cudnn.benchmark = True
 
 def get_temporal_potential(sequence_len: Union[int, None], min_timesteps_seen: Union[int, None], dataset_path: List[str], dataset_name, loop: int) -> Tuple[int, int, int]:
-    if sequence_len is None:
-        sequence_len = cfg['sequence_len']
-    if min_timesteps_seen is None:
-        min_timesteps_seen = cfg['min_timesteps_seen']
 
     # Create datasets and data loaders
     train_dataset = SequenceTfcoDataset(
@@ -36,7 +32,11 @@ def get_temporal_potential(sequence_len: Union[int, None], min_timesteps_seen: U
         loop=loop
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=cfg['batch_size'], shuffle=False, num_workers=8)  
+    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=False, num_workers=8)
+
+    if len(train_loader) == 0:
+        print(f'No data found for the given configuration: sequence_len={sequence_len}, min_timesteps_seen={min_timesteps_seen}, loop={loop}')
+        return 0, 0, 0  
 
     counter_1 = 0
     counter_2 = 0

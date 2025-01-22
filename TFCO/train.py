@@ -166,9 +166,6 @@ def main(config_file: str):
     logger.info('Creating model')
     model = MaskedSequenceTransformer(sequence_len=config['sequence_len'], max_vehicles=config['max_vehicles'], **network_configs['MaskedTransformer'])
 
-    if torch.cuda.device_count() > 1:
-        logger.info(f"Using {torch.cuda.device_count()} GPUs")
-        model = nn.DataParallel(model)
     model.to(device)
 
     if config['load_complete_model']:
@@ -202,4 +199,4 @@ def main(config_file: str):
     logger.info('Finished training')
 
 if __name__ == '__main__':
-    main('configs/config.yaml')
+    main('configs/train_config.yaml')

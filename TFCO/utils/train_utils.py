@@ -5,7 +5,6 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 import numpy as np
 import os
-from configs.configs_seqdataset import SEQ_DATASET
 import PIL
 import time
 from torchvision import transforms

@@ -1,6 +1,6 @@
 dataset_path: ../FCO_modeling/tfco_datasets
 dataset_name:
-    - 5382_monocon_05
+    - pen01_radius250
 train_split:
     - - - ':'
         - 0.7
