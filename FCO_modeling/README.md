@@ -4,6 +4,12 @@ This section of the repository contains the source code for running various FCO 
 
 We provide a conda environment to run all the code, specified in `environment.yaml`.
 
+## SUMO Simulation Setup
+
+To run the code, you need to provide SUMO simulation setups. We offer an adapted version of the [Ingolstadt simulation](https://github.com/TUM-VT/sumo_ingolstadt), which can be downloaded from [this link](https://faubox.rrze.uni-erlangen.de/getlink/fiDsJE1r1VoTiR44LHhRRY/sumo_sim). 
+
+After downloading, place the folder under `/FCO_modeling`.
+
 ## Running FCO Modeling
 
 All FCO modeling approaches can be initialized with the `detector_factory` function. Relevant configurations are provided as keyword arguments to the `detector_factory` function. For example, to initialize a detector using the emulation modeling approach:
