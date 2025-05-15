@@ -12,7 +12,7 @@ from torchvision import transforms
 import traci
 
 from configs.config_simulation import TRAFFIC
-from sumo_sim.extract_poly_cords import filter_buildings
+from sim_dependency.extract_poly_cords import filter_buildings
 
 def create_box_pillow(width, length, x_pos, y_pos, angle, ego_info):
     ego_x, ego_y, ego_angle = ego_info

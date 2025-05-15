@@ -6,7 +6,7 @@ import libsumo as traci
 import xml.etree.ElementTree as ET
 import numpy as np
 import open3d as o3d
-from sumo_sim.extract_poly_cords import filter_buildings, \
+from sim_dependency.extract_poly_cords import filter_buildings, \
     extrude_points, interpolate_points, extract_building_coordinates, get_centroid
 from configs.config_simulation import TRAFFIC, BUILDINGS
 from utils.cv_utils.mesh_to_pointcloud import mesh_to_pc

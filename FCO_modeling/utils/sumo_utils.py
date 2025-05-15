@@ -33,9 +33,8 @@ def configure_sumo(config_file: str, gui: bool = False, max_steps: int=36000, se
         sumo_binary = checkBinary('sumo')
 
     # Setting the cmd command to run sumo at simulation time
-    model_path = os.path.join('sumo_sim', config_file)
     sumo_cmd = [
-        sumo_binary, "-c", model_path, "--no-step-log", "true",
+        sumo_binary, "-c", config_file, "--no-step-log", "true",
         "--waiting-time-memory", str(max_steps), "--xml-validation", "never", "--start", "--quit-on-end", "--seed", str(seed)
     ]
 
@@ -51,6 +50,7 @@ def update_sumocfg(path_to_cfg: str, net_file: str, route_files: List[str], star
 
     # Update route-files value (excluding any None values)
     valid_route_files = [rf for rf in route_files if rf is not None]
+    print(valid_route_files)
     root.find(".//route-files").set("value", ",".join(valid_route_files))
 
     # Update begin and end values
@@ -126,4 +126,4 @@ def variate_traffic(vehicle_routes: str, seed: int=42, mean=0, std=15):
 
 if __name__ == "__main__":
     #update_modal_split('../sumo_sim/multimodal.rou.xml', TRAFFIC['MODAL_SPLIT'])
-    update_sumocfg_file('../sumo_sim/config_a9-thi.sumocfg', 'multimodal.rou.xml', 'cycle.rou.xml', None)
+    #update_sumocfg_file('../sumo_sim/config_a9-thi.sumocfg', 'multimodal.rou.xml', 'cycle.rou.xml', None)
