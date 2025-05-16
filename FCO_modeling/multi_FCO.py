@@ -40,6 +40,7 @@ def main(config_path: str = 'configs/config_FCO.yaml'):
     num_loops = config['num_loops']
     fco_penetration_rate = config['fco_penetration_rate']
     filename = config['filename']
+    dataset_name = config['dataset_name']
     add_info = config['additional_data_information']
     model_path = config['model_path']
     center_point = config['center_point']
@@ -47,11 +48,15 @@ def main(config_path: str = 'configs/config_FCO.yaml'):
     rou_file = config['rou_file']
     sumo_file = config['sumo_file']
     polygons = config['polygons']
+    set_seed = config['set_seed']
     inflow_time = config['inflow_time']
 
     base_root = Path(__file__).resolve().parents[2]
 
-    data_fco_path = os.path.join('tfco_datasets', filename)
+    if set_seed:
+        np.random.seed(13)
+
+    data_fco_path = os.path.join('tfco_datasets', str(add_info+'_'+filename))
     if os.path.isdir(data_fco_path):
         shutil.rmtree(data_fco_path)
     os.makedirs(data_fco_path)
@@ -63,13 +68,12 @@ def main(config_path: str = 'configs/config_FCO.yaml'):
     logging.basicConfig(filename=logger_filename, level=logging.INFO)
     logging.info('Starting simulation at ' + time.strftime("%H:%M:%S", time.localtime()))
 
-    polygons_path = os.path.join(base_root, polygons)
-    building_polygons = parse_polygons_from_xml(polygons_path)
+    building_polygons = parse_polygons_from_xml(os.path.join(base_root, polygons))
     building_polygons = [polygon for polygon in building_polygons if np.linalg.norm(np.array(polygon.exterior.coords[0]) - np.array(center_point)) < radius]
 
     detector = detector_factory(detection_method, model_path=model_path, building_polygons=building_polygons)
 
-    dataset = TfcoDatasetGenerator(filename, center_point, radius, add_info, detector=detector)
+    dataset = TfcoDatasetGenerator(filename, center_point, radius, add_info, dataset_name, detector=detector)
     fcos = FcoMonitor(fco_penetration_rate)
 
     delete_all_items_in_dir('tmp_3d')
@@ -79,10 +83,10 @@ def main(config_path: str = 'configs/config_FCO.yaml'):
     for loop, start_time in enumerate(start_times):
         logging.info(f'Starting simulation loop {loop} at time {start_time}')
 
-        #variate_traffic('multifco_vehicle_routes.rou.xml')
-        #update_sumocfg(sumo_file, None, rou_file, start_time)
-        sumo_path = os.path.join(base_root, sumo_file)
-        sumo_cmd = configure_sumo(sumo_path)
+        variate_traffic(os.path.join(base_root, rou_file))
+        update_sumocfg(os.path.join(base_root, sumo_file), None, rou_file, start_time)
+
+        sumo_cmd = configure_sumo(os.path.join(base_root, sumo_file))
         traci.start(sumo_cmd)
 
         for _ in range(inflow_time):

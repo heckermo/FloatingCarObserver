@@ -40,7 +40,7 @@ def configure_sumo(config_file: str, gui: bool = False, max_steps: int=36000, se
 
     return sumo_cmd
 
-def update_sumocfg(path_to_cfg: str, net_file: str, route_files: List[str], start_value: int, end_value: Optional[int] = None):
+def update_sumocfg(path_to_cfg: str, net_file: str, route_files: str, start_value: int, end_value: Optional[int] = None):
     # Parse the XML file
     tree = ET.parse(path_to_cfg)
     root = tree.getroot()
@@ -50,13 +50,13 @@ def update_sumocfg(path_to_cfg: str, net_file: str, route_files: List[str], star
 
     # Update route-files value (excluding any None values)
     valid_route_files = [rf for rf in route_files if rf is not None]
-    print(valid_route_files)
-    root.find(".//route-files").set("value", ",".join(valid_route_files))
+
+    root.find(".//route-files").set("value", "".join(valid_route_files[5:]))
 
     # Update begin and end values
     root.find(".//begin").set("value", str(start_value))
     if end_value is None:
-        end_value = start_value + 100000
+        end_value = start_value + 10000
     root.find(".//end").set("value", str(end_value))
 
     # Write the changes back to the file
@@ -85,19 +85,20 @@ def simulate():
     for _ in range(1):
         traci.simulationStep()
 
-def variate_traffic(vehicle_routes: str, seed: int=42, mean=0, std=15):
+def variate_traffic(path_routes: str, seed: int=42, mean=0, std=30):
     """
     This function is used to variate the traffic in the simulation using a normal distribution.
     """
     # set random seed for numpy
     np.random.seed(seed)
-    tree = ET.parse(os.path.join('sumo_sim', vehicle_routes))
+    tree = ET.parse(path_routes)
     root = tree.getroot()
     if variate_traffic:
-        # Find all vehicle elements
-        vehicles = root.findall('vehicle')
+        # Find all trip elements
+        trips = root.findall('trip')
+        flows = root.findall('flow')
 
-        for vehicle in vehicles:
+        for trip in trips:
             # Generate a new departure time
             depart_time = np.random.normal(mean, std)
 
@@ -105,25 +106,23 @@ def variate_traffic(vehicle_routes: str, seed: int=42, mean=0, std=15):
             depart_time_add = max(depart_time, 0)
 
             # Get the current departure time
-            depart_time = float(vehicle.get('depart'))
+            depart_time = float(trip.get('depart'))
 
             # Update the departure time
-            vehicle.set('depart', str(depart_time + depart_time_add))
+            trip.set('depart', str(depart_time + depart_time_add))
 
-    # Sort vehicles by their departure time
-    vehicles_sorted = sorted(vehicles, key=lambda v: float(v.get('depart')))
+    # Sort routes by their departure(trip) or begin(flow) time
 
-    # Remove old vehicles from root and add sorted vehicles
-    for vehicle in vehicles:
-        root.remove(vehicle)
-    for vehicle in vehicles_sorted:
-        root.append(vehicle)
+    total_routes = trips + flows
+    routes_sorted = sorted(total_routes, key=lambda v: float(v.get('depart')) if v.get('color') == 'cyan' else float(v.get('begin')))
+
+    # Remove old trips from root and add sorted routes
+    for route in total_routes:
+        root.remove(route)
+
+    for routes in routes_sorted:
+        root.append(routes)
 
     # Save the modified XML to a new file
-    tree.write(os.path.join('sumo_sim', 'multifco_vehicle_routes.rou.xml'))
+    tree.write(path_routes)
 
-
-
-if __name__ == "__main__":
-    #update_modal_split('../sumo_sim/multimodal.rou.xml', TRAFFIC['MODAL_SPLIT'])
-    #update_sumocfg_file('../sumo_sim/config_a9-thi.sumocfg', 'multimodal.rou.xml', 'cycle.rou.xml', None)

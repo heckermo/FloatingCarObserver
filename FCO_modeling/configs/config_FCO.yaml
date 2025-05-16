@@ -3,12 +3,13 @@ detection_method: '2d-raytracing' # '2d-raytracing', '3d-raytracing', 'emulation
 start_times: 
     - 100
     - 82600
-explicit_start_times: ""
+explicit_start_times: ''
 num_steps: 1000
 num_loops: 10 # run simulation several times to get more data (traffic will be different each time)
 fco_penetration_rate: 0.1
 filename: '5382_monocon_05' 
-additional_data_information: 'test1'
+additional_data_information: 'test3'
+dataset_name: 'dataset.pkl'
 model_path: 'ViTEncoderDecoder_monocon_new' # only used for the nn detection method
 center_point: 
     - 100
@@ -18,4 +19,5 @@ polygons: 'sumo/network/StickCity.add.xml' #
 rou_file: 'sumo/routes/StickCity.rou.xml'
 sumo_file: 'sumo/StickCity.sumocfg'
 variate_traffic: true
+set_seed: false
 inflow_time: 750 # time to allow traffic to flow into the simulation
