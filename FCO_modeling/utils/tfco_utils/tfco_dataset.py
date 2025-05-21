@@ -7,8 +7,8 @@ import os
 import itertools
 
 class TfcoDatasetGenerator():
-    def __init__(self, filename: str, center_of_interest: Tuple[float, float], radius: int, add_info: str, dataset_name:str, detector: Detector):
-        self.filename = os.path.join('tfco_datasets', str(add_info+'_'+filename), str(add_info+'_'+dataset_name))
+    def __init__(self, base_root:str, filename: str, center_of_interest: Tuple[float, float], radius: int, add_info: str, dataset_name:str, detector: Detector):
+        self.filename = os.path.join(base_root, 'data', 'tfco_datasets', str(add_info+'_'+filename), dataset_name) #
         self.dataset = pd.DataFrame(columns=['id', 'loop', 'timestep', 'vehicle_information'])
 
         self.detector = detector

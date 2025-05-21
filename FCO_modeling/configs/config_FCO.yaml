@@ -8,16 +8,16 @@ num_steps: 1000
 num_loops: 10 # run simulation several times to get more data (traffic will be different each time)
 fco_penetration_rate: 0.1
 filename: '5382_monocon_05' 
-additional_data_information: 'test3'
+additional_data_information: 'total_1'
 dataset_name: 'dataset.pkl'
 model_path: 'ViTEncoderDecoder_monocon_new' # only used for the nn detection method
 center_point: 
     - 100
     - 100
 radius: 1750
-polygons: 'sumo/network/StickCity.add.xml' # 
+polygons: 'sumo/network/StickCity.add.xml' 
 rou_file: 'sumo/routes/StickCity.rou.xml'
 sumo_file: 'sumo/StickCity.sumocfg'
 variate_traffic: true
-set_seed: false
+set_seed: 13 
 inflow_time: 750 # time to allow traffic to flow into the simulation

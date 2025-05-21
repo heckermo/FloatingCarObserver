@@ -53,10 +53,10 @@ def main(config_path: str = 'configs/config_FCO.yaml'):
 
     base_root = Path(__file__).resolve().parents[2]
 
-    if set_seed:
-        np.random.seed(13)
+    if set_seed is not None:#
+        np.random.seed(set_seed)
 
-    data_fco_path = os.path.join('tfco_datasets', str(add_info+'_'+filename))
+    data_fco_path = os.path.join(base_root, 'data', 'tfco_datasets', str(add_info+'_'+filename))#
     if os.path.isdir(data_fco_path):
         shutil.rmtree(data_fco_path)
     os.makedirs(data_fco_path)
@@ -73,7 +73,7 @@ def main(config_path: str = 'configs/config_FCO.yaml'):
 
     detector = detector_factory(detection_method, model_path=model_path, building_polygons=building_polygons)
 
-    dataset = TfcoDatasetGenerator(filename, center_point, radius, add_info, dataset_name, detector=detector)
+    dataset = TfcoDatasetGenerator(base_root, filename, center_point, radius, add_info, dataset_name, detector=detector)#
     fcos = FcoMonitor(fco_penetration_rate)
 
     delete_all_items_in_dir('tmp_3d')

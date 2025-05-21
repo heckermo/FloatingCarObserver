@@ -3,6 +3,7 @@ from sumolib import checkBinary
 import os
 import traci
 from typing import List
+import random
 import numpy as np
 from typing import Optional 
 
@@ -110,6 +111,16 @@ def variate_traffic(path_routes: str, seed: int=42, mean=0, std=30):
 
             # Update the departure time
             trip.set('depart', str(depart_time + depart_time_add))
+
+        for flow in flows: 
+            noise = random.randint(-5, 5)
+
+            vehs_per_hour = float(flow.get('vehsPerHour'))
+
+            update_vehs_per_hour = vehs_per_hour + noise
+
+            flow.set('vehsPerHour', str(update_vehs_per_hour))
+
 
     # Sort routes by their departure(trip) or begin(flow) time
 
