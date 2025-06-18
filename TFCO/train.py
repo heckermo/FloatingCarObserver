@@ -1,9 +1,11 @@
 import logging
 import os
 import time
-from datetime import datetime
 from typing import Dict, Tuple, Union
 import yaml
+from pathlib import Path
+from codecarbon import EmissionsTracker
+import csv 
 
 import torch
 import torch.nn as nn
@@ -15,6 +17,7 @@ import time
 
 from models import MaskedSequenceTransformer
 from utils.autoencoder_utils import prepare_path_structure
+from utils.path_utils import generate_file_name
 from utils.criterion_utils import CombinedLoss, TrafficPositionLoss, SingleTrafficPositionLoss
 from utils.dataset_utils import SequenceTfcoDataset
 from utils.scheduler_utils import create_scheduler
@@ -22,6 +25,7 @@ from utils.train_utils import set_seed
 from utils.wandb_utils import start_wandb
 from utils.intraining_evaluation import InTrainingEvaluator
 torch.backends.cudnn.benchmark = True
+
 
 class Trainer:
     def __init__(
@@ -49,6 +53,7 @@ class Trainer:
         self.path = path
         self.best_val_loss = float('inf')
         self.use_scaler = False
+
         if self.use_scaler:
             self.scaler = torch.cuda.amp.GradScaler()
 
@@ -84,6 +89,7 @@ class Trainer:
     def train_epoch(self, epoch: int):
         self.model.train()
         progress_bar = tqdm(total=len(self.train_loader), desc=f'Epoch {epoch}', leave=False, mininterval=10)
+
         for batch in self.train_loader:
             self.process_batch(batch, train=True)
             progress_bar.update(1)
@@ -107,8 +113,21 @@ class Trainer:
         torch.save(self.model.state_dict(), save_path)
         logging.getLogger(__name__).info(f'Model saved at {save_path}')
 
-    def train(self):
+    def train(self, config, filepath):
+
+        file_dir = os.path.join(filepath, "additional_information")
+        csv_file = os.path.join(file_dir, "epoch_time.csv")
+        csv_fieldnames = ["epoch", "duration"]
+
+        with open (csv_file, mode="w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=csv_fieldnames)
+            writer.writeheader()
+        
         for epoch in range(self.config['num_epochs']):
+            tracker = EmissionsTracker(project_name=config["project_name"], output_dir=file_dir, save_to_file=config["track_emissions"], log_level="critical", measure_power_secs=60)
+            tracker.start()
+            start_time = time.time()
+
             self.train_epoch(epoch)
 
             if epoch % self.config['validation_frequency'] == 0:
@@ -117,19 +136,28 @@ class Trainer:
                 if val_loss < self.best_val_loss:
                     self.best_val_loss = val_loss
                     self.save_model(epoch)
+            tracker.stop()
+            epoch_duration = time.time() - start_time
+            csv_row = {"epoch": epoch, "duration": round(epoch_duration/60, 2)}
+
+            with open (csv_file, mode="a", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=csv_fieldnames)
+                writer.writerow(csv_row)
 
 def main(config_file: str):
+    base_root = Path(__file__).resolve().parents[2]
+
+    with open(config_file, 'r') as f:
+        config = yaml.safe_load(f)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     logger = logging.getLogger(__name__)
 
-    set_seed(42)
-
-    with open(config_file, 'r') as f:
-        config = yaml.safe_load(f)
     network_configs = config['network_configs']
+    set_seed(config["seed"]) 
 
-    filename = f"{config['sequence_len']}__{config['min_timesteps_seen']}__{config['distance_weight']}__{datetime.now().strftime('%d-%m_%H-%M-%S')}"
+    filename = generate_file_name(config["sequence_len"], config["min_timesteps_seen"], config["dataset_name"])
     path = prepare_path_structure(filename, base_path='trained_models', config_file=config_file)
 
     log_file = os.path.join(path, 'training.log')
@@ -139,7 +167,7 @@ def main(config_file: str):
     logger.addHandler(file_handler)
 
     train_dataset = SequenceTfcoDataset(
-        dataset_path=[os.path.join(config['dataset_path'], n) for n in config['dataset_name']],
+        dataset_path=[os.path.join(base_root, config['dataset_path'], n) for n in config['dataset_name']],
         sequence_len=config['sequence_len'],
         max_vehicles=config['max_vehicles'],
         min_timesteps_seen=config['min_timesteps_seen'],
@@ -150,7 +178,7 @@ def main(config_file: str):
     train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=8)
 
     val_dataset = SequenceTfcoDataset(
-        dataset_path=[os.path.join(config['dataset_path'], n) for n in config['dataset_name']],
+        dataset_path=[os.path.join(base_root, config['dataset_path'], n) for n in config['dataset_name']],
         sequence_len=config['sequence_len'],
         max_vehicles=config['max_vehicles'],
         min_timesteps_seen=config['min_timesteps_seen'],
@@ -160,7 +188,7 @@ def main(config_file: str):
     )
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=8)
 
-    start_wandb(config, network_configs, filename, project_name='tfco_ma', mode='disabled')
+    start_wandb(config, network_configs, filename, project_name=config["project_name"], mode='online')
 
     # Create the model
     logger.info('Creating model')
@@ -195,7 +223,7 @@ def main(config_file: str):
     )
 
     logger.info('Starting the training')
-    trainer.train()
+    trainer.train(config=config, filepath=path)
     logger.info('Finished training')
 
 if __name__ == '__main__':

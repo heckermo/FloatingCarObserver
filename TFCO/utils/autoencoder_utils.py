@@ -59,6 +59,7 @@ def prepare_path_structure(filename: str, base_path: str, config_file: str) -> s
     os.mkdir(os.path.join(path, 'plots', 'val'))
     os.mkdir(os.path.join(path, 'models'))
     os.mkdir(os.path.join(path, 'results'))
+    os.mkdir(os.path.join(path, 'additional_information'))
 
     # copy the config file to the path
     shutil.copy(config_file, os.path.join(path, 'config.yaml'))

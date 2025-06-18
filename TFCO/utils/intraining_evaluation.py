@@ -10,6 +10,12 @@ import pickle
 import matplotlib.pyplot as plt
 from itertools import chain
 
+from codecarbon import EmissionsTracker
+from sklearn.metrics import mean_squared_log_error, r2_score 
+import torch.nn.functional as F 
+import time
+
+
 class InTrainingEvaluator:
     def __init__(self, config, path, mode: str = 'raw'):
         """
@@ -66,7 +72,7 @@ class InTrainingEvaluator:
             outputs_one_mask = outputs_binary == 1
 
             # get the number of vehicles that are 1 in the outputs_binary
-            self.additional_information['count_acc'].append((outputs_binary == 1).sum().item()/(outputs_binary.shape[0] + 1e-6))
+            self.additional_information['recovery_count_accuracy'].append((outputs_binary == 1).sum().item()/(outputs_binary.shape[0] + 1e-6))
 
             # Calculate the mean euclidean distance between predicted and target positions
             if target_tensor[relevant_mask].shape[0] == 0:
@@ -75,7 +81,7 @@ class InTrainingEvaluator:
                 distance = torch.mean(torch.norm(outputs[:, 1:] - target_tensor[relevant_mask][:, 1:].to(outputs.device), dim=1)).item()
                 if collect_raw_data:
                     self.results_storage['zeros'].append(torch.norm(outputs[:, 1:] - target_tensor[relevant_mask][:, 1:].to(outputs.device), dim=1).detach().cpu().numpy())
-            self.additional_information['distance'].append(distance)
+            self.additional_information['total_mean_euclidean_distance'].append(distance)
 
             # Calculate the mean euclidean distance between predicted and target positions for vehicles that are 1 in the outputs_binary
             target_tensor_device = target_tensor[relevant_mask].to(outputs.device)
@@ -85,14 +91,35 @@ class InTrainingEvaluator:
                 distance_one = torch.mean(torch.norm(outputs[outputs_one_mask][:, 1:] - target_tensor_device[outputs_one_mask][:, 1:], dim=1)).item()
                 if collect_raw_data:
                     self.results_storage['ones'].append(torch.norm(outputs[outputs_one_mask][:, 1:] - target_tensor_device[outputs_one_mask][:, 1:], dim=1).detach().cpu().numpy())
-            self.additional_information['distance_ones'].append(distance_one)
+            self.additional_information['mean_euclidean_distance_ones'].append(distance_one)
 
             # Calculate the mean euclidean distance between predicted and target positions for vehicles that are 0 in the outputs_binary
             if (~outputs_one_mask).sum() == 0:
                 distance_zero = 0
             else:
                 distance_zero = torch.mean(torch.norm(outputs[~outputs_one_mask][:, 1:] - target_tensor_device[~outputs_one_mask][:, 1:], dim=1)).item()
-            self.additional_information['distance_zeros'].append(distance_zero)
+            self.additional_information['mean_euclidean_distance_zeros'].append(distance_zero)
+
+
+            all_distances = torch.norm(outputs[:,1:] - target_tensor[relevant_mask][:, 1:].to(outputs.device), dim=1)
+
+            # Calculate Root Mean Squared error
+            rmse_distance = torch.sqrt(torch.mean(all_distances **2)).item()
+            self.additional_information["root_mean_squared_error"].append(rmse_distance)
+
+            
+            # Calculate Percentage of Correct Keypoints 
+            pck_treshold = 0.5
+            pck = (all_distances < pck_treshold).float().mean().item()
+            self.additional_information["pck_05"].append(pck)
+
+            # Calculate R^2 
+            pred_pos = outputs[:, 1:].detach().cpu().numpy()
+            true_pos = target_tensor[relevant_mask][:, 1:].detach().cpu().numpy()
+
+            if pred_pos.shape[0] > 1:
+                r2 = r2_score(true_pos, pred_pos)
+                self.additional_information["r2_values"].append(r2)
 
         elif self.mode == 'bev':
             raise NotImplementedError("BEV mode is not implemented.")
@@ -113,6 +140,7 @@ class InTrainingEvaluator:
         Returns:
             float, optional: The mean loss if return_loss is True.
         """
+        
         # Increment the epoch counter
         if train:
             self.epoch_counter += 1
@@ -120,7 +148,7 @@ class InTrainingEvaluator:
         return_dict = {}
         # Compute mean loss
         loss = np.mean(self.loss).item()
-        return_dict['loss'] = loss
+        return_dict['mean_loss'] = loss
 
         # Compute mean of additional losses
         for key, values in self.additional_losses.items():
@@ -141,7 +169,7 @@ class InTrainingEvaluator:
         if print_output:
             logger = logging.getLogger(__name__)
             logger.info(", ".join(f"{key}: {value:.4f}" for key, value in return_dict.items()))
-
+        
         # Log the results to wandb
         wandb.log(return_dict, step=self.epoch_counter)
 
