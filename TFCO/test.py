@@ -3,6 +3,8 @@ import os
 from datetime import datetime
 from typing import Dict, Tuple
 import importlib
+import yaml
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -15,6 +17,7 @@ from utils.dataset_utils import SequenceTfcoDataset
 from utils.intraining_evaluation import InTrainingEvaluator
 from utils.train_utils import set_seed
 from utils.wandb_utils import start_wandb
+from utils.path_utils import generate_file_name
 import shutil
 from utils.criterion_utils import SingleTrafficPositionLoss  # Import your loss function
 
@@ -63,21 +66,25 @@ class Tester:
         progress_bar.close()
         self.evaluator.return_collection(print_output=True, train=False)
 
-def main(model_type: str, model_path: str):
+def main(model_type: str, model_path: str, data_path: str):
+    base_root = Path(__file__).resolve().parents[2]
+
     assert model_type in ['MaskedSequenceTransformer'], f"Model type {model_type} not supported"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     logger = logging.getLogger(__name__)
-
-    set_seed(42)
     
-    path = os.path.join(model_path.split('/')[:-1], 'test_results')
+    path = os.path.join(base_root, model_path, 'test_results')
     if os.path.exists(path):
         shutil.rmtree(path)
     os.makedirs(path)
+    
     # use the cfg from the trained model
-    with open(model_path.split('/')[:-1] + '/train_config.yaml', 'r') as file:
+    cfg_path = os.path.join(base_root, "fco/TFCO", "configs/train_config.yaml")
+    with open(cfg_path, 'r') as file:
         config = yaml.load(file, Loader=yaml.FullLoader) 
+
+    set_seed(config["seed"]) 
 
     log_file = os.path.join(path, 'test.log')
     file_handler = logging.FileHandler(log_file)
@@ -86,8 +93,9 @@ def main(model_type: str, model_path: str):
     logger.addHandler(file_handler)
 
     # Prepare the test dataset
+    full_data_path = os.path.join(base_root, data_path)
     test_dataset = SequenceTfcoDataset(
-        dataset_path=[os.path.join(config['dataset_path'], n) for n in config['dataset_name']],
+        dataset_path=[full_data_path],
         sequence_len=config['sequence_len'],
         max_vehicles=config['max_vehicles'],
         min_timesteps_seen=config['min_timesteps_seen'],
@@ -103,7 +111,7 @@ def main(model_type: str, model_path: str):
         model = MaskedSequenceTransformer(
         sequence_len=config['sequence_len'],
         max_vehicles=config['max_vehicles'],
-        **configs['network_configs']['MaskedSequenceTransformer']
+        **config['network_configs']['MaskedTransformer']
         )
         model.load_state_dict(torch.load(model_path, map_location=device))
         model.to(device)
@@ -113,8 +121,11 @@ def main(model_type: str, model_path: str):
         distance_weight=config['distance_weight'],
         class_weight=config['class_weight']
     )
+    name = config["project_name"] + "_test"
+    filename = generate_file_name(config["sequence_len"], config["min_timesteps_seen"], config["dataset_name"])
 
-    evaluator = InTrainingEvaluator()
+    start_wandb(config, config["network_configs"], filename, project_name=name, mode='online')
+    evaluator = InTrainingEvaluator(config=config, path=path)
 
     tester = Tester(
         model=model,
@@ -131,5 +142,5 @@ def main(model_type: str, model_path: str):
     logger.info('Finished testing')
 
 if __name__ == '__main__':
-    main(model_type='MaskedSequenceTransformer', model_path='path/to/saved/model.pth')
+    main(model_type='MaskedSequenceTransformer', model_path='trained_models/skc_r100_o0.7_pr0.1_seq10_mint3_20-06_10-24-43/model_epoch_8.pth', data_path="data/tfco_datasets/pen01_radius250")
 
