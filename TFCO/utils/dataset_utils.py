@@ -10,6 +10,8 @@ from typing import Optional, Tuple, List
 from torch.utils.data import Dataset
 from einops import rearrange
 
+from utils.vehicle_filter import get_furthest_vehicles, get_nearest_vehicles, get_random_vehicles
+
 try:
     from utils.bev_utils import create_bev_tensor
 except ImportError:
@@ -17,7 +19,7 @@ except ImportError:
     from utils.bev_utils import create_bev_tensor
 
 class SequenceTfcoDataset(Dataset):
-    def __init__(self, dataset_path: List[str], sequence_len: int = 10, max_vehicles: int = 100, min_timesteps_seen: int = 3, 
+    def __init__(self, dataset_path: List[str], sequence_len: int = 10, max_vehicles: int = 100, min_timesteps_seen: int = 3, overlap_mode: bool = False, filter: list = None,
                  split: Optional[tuple] = None, radius: Optional[int] = None, centerpoint: Optional[Tuple[int, int]] = None, loop: Optional[int] = None):
         """
         Args:
@@ -25,6 +27,8 @@ class SequenceTfcoDataset(Dataset):
             sequence_len (int): Number of timesteps to consider in the sequence (ignored if pretrain is True)
             max_vehicles (int): Maximum number of vehicles to consider (required if using raw input/output)
             min_timesteps_seen (int): Minimum number of timesteps a vehicle must be seen to be considered as a target (i.e. target will be labelled as 1 else 2)
+            overlap_mode (bool): Indicates whether overlap mode is activated 
+            filter (list): List containing all necessary informations for filtering the vehicles 
         """
         if split is not None:
             assert len(split) == len(dataset_path), "Split must have the same length as the dataset_path"
@@ -50,13 +54,23 @@ class SequenceTfcoDataset(Dataset):
             else:
                 self.dataset = pd.concat([self.dataset, current_dataset], ignore_index=True)
 
+        
+        if filter is not None:
+            self.filter_vehicles = True
+            self.filter_mode = filter[0]
+            self.selection_mode = filter[1]
+            self.k = filter[2]
+        else:
+            self.filter_vehicles = False
+            self.filter_mode = "-"
+
         self.sequence_len = sequence_len
         self.max_vehicles = max_vehicles
         self.min_timesteps_seen = min_timesteps_seen
 
         try:
-            with open(os.path.join(dataset_path[0], 'config.yaml'), 'r') as f:
-                self.config = yaml.safe_load(f)
+            with open(os.path.join(dataset_path[0], 'config.yaml'), 'r', encoding="utf8") as f:
+                self.config = yaml.load(f, Loader=yaml.FullLoader)
         except:
             with open(os.path.join(dataset_path[0], 'config.pkl'), 'rb') as f:
                 self.config = pd.read_pickle(f)
@@ -66,8 +80,13 @@ class SequenceTfcoDataset(Dataset):
             self.radius = radius
         else:
             self.radius = self.config['radius']
-        if centerpoint is not None:
+        
+        if centerpoint is not None and overlap_mode is False:
             self.center_point = centerpoint
+        elif centerpoint is None and overlap_mode is True:
+            self.pois = list()
+            for poi in self.config["center_point"]:
+                self.pois.append(poi)
         else:
             try:
                 self.center_point = self.config['center_point']
@@ -78,10 +97,13 @@ class SequenceTfcoDataset(Dataset):
 
         self._get_allowed_indexes()  # Will create self.allowed_indexes
 
-        self._create_inputs()   # Will create self.input_tensors
-        self._create_targets()  # Will create self.target_tensors
+        self._create_inputs(overlap_mode)   # Will create self.input_tensors
+        self._create_targets(overlap_mode)  # Will create self.target_tensors
 
         print(f"Max vehicles in the dataset: {self.max_vehicles_counter}")
+        print(f"Overlap mode: {overlap_mode}")
+        print(f"Filter mode: {self.filter_vehicles}")
+        print(f"target_len {len(self.target_information)} and input len {len(self.input_information)}")
 
     def __len__(self):
         return len(self.allowed_indexes)
@@ -170,6 +192,8 @@ class SequenceTfcoDataset(Dataset):
         # Overwrite the target tensor with the zero vehicles
         target_tensor[zero_vehicles, 0] = 0
 
+        #print(f"Size Input: {input_tensor.size()}, Size target: {target_tensor.size()}")
+
         return input_tensor, target_tensor, index
 
     def _get_allowed_indexes(self):
@@ -190,59 +214,148 @@ class SequenceTfcoDataset(Dataset):
                 for i in range(self.sequence_len - 1, len(indices)):
                     self.allowed_indexes.append(indices[i])
 
-    def _create_inputs(self):
+    def _create_inputs(self, overlap_mode):
         # Prepare input tensors for all data points
-        self.input_information = {}
+        if overlap_mode:
+            self.input_information = {}
 
-        for data in tqdm(self.dataset.itertuples(), total=len(self.dataset), desc="Preparing input tensors"):
-            detected_vehicles = {
-                key: vehicle for key, vehicle in data.vehicle_information.items()
-                if vehicle.get('detected_label') == 1 or vehicle.get('fco_label') == 1
-            }
+            for data in tqdm(self.dataset.itertuples(), total=len(self.dataset), desc="Preparing input tensors"):
 
-            processed_vehicle_information = {}
+                detected_vehicles = {
+                    key: vehicle for key, vehicle in data.vehicle_information.items()
+                    if vehicle.get('detected_label') == 1 or vehicle.get('fco_label') == 1
+                }
 
-            for vehicle_id, vehicle_data in detected_vehicles.items():
-                # Normalize vehicle positions relative to the center point and radius
-                normalized_position = [
-                    1,  # Assuming this is a fixed label or value
-                    (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
-                    (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
-                ]
-                
-                # Calculate the distance and filter vehicles within a unit radius
-                distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
-                if distance <= 1:
-                    processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
+                processed_vehicle_information = {}
 
-            # Store processed vehicle information for this data point
-            self.input_information[data.id] = processed_vehicle_information
+                for poi in self.pois:
+                    for vehicle_id, vehicle_data in detected_vehicles.items():
+                        # Normalize vehicle positions relative to the center point and radius
+                        normalized_position = [
+                            1,  # Assuming this is a fixed label or value
+                                                                #poi
+                            (vehicle_data['position'][0] - poi[0]) / self.radius,
+                            (vehicle_data['position'][1] - poi[1]) / self.radius,
+                        ]
+                        
+                        # Calculate the distance and filter vehicles within a unit radius
+                        distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
+                        if distance <= 1:
+                            processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
+
+                    # Store processed vehicle information for this data point
+                    self.input_information[data.id] = processed_vehicle_information
+            
+        else:
+            self.input_information = {}
+
+            for data in tqdm(self.dataset.itertuples(), total=len(self.dataset), desc="Preparing input tensors"):
+                detected_vehicles = {
+                    key: vehicle for key, vehicle in data.vehicle_information.items()
+                    if vehicle.get('detected_label') == 1 or vehicle.get('fco_label') == 1
+                }
+
+                processed_vehicle_information = {}
+                for vehicle_id, vehicle_data in detected_vehicles.items():
+                    # Normalize vehicle positions relative to the center point and radius
+                    normalized_position = [
+                        1,  # Assuming this is a fixed label or value
+                                                            #poi
+                        (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
+                        (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
+                    ]
+                    
+                    # Calculate the distance and filter vehicles within a unit radius
+                    distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
+                    if distance <= 1:
+                        processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
+
+                if self.filter_vehicles:
+                    if self.selection_mode == "nearest":
+                        processed_vehicle_information = get_nearest_vehicles(processed_vehicle_information, self.filter_mode, self.k)
+                    elif self.selection_mode == "random":
+                        processed_vehicle_information = get_random_vehicles(processed_vehicle_information, self.filter_mode, self.k)
+                    elif self.selection_mode == "furthest":
+                        processed_vehicle_information = get_furthest_vehicles(processed_vehicle_information, self.filter_mode, self.k)
+                    else:
+                        assert "No correct mode was given!"
+
+                    # 0 or k --> exact
+                    self.input_information[data.id] = processed_vehicle_information
+                else:
+                    self.input_information[data.id] = processed_vehicle_information
 
 
-    def _create_targets(self):
+
+    def _create_targets(self, overlap_mode):
         # Prepare input tensors for all data points
-        self.target_information = {}
+        if overlap_mode:
+            self.target_information = {}
 
-        for data in tqdm(self.dataset.itertuples(), total=len(self.dataset), desc="Preparing input tensors"):
-            processed_vehicle_information = {}
-
-            for vehicle_id, vehicle_data in data.vehicle_information.items():
-                # Normalize vehicle positions relative to the center point and radius
-                normalized_position = [1,
-                    (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
-                    (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
-                ]
+            for data in tqdm(self.dataset.itertuples(), total=len(self.dataset), desc="Preparing input tensors"):
+                processed_vehicle_information = {}
                 
-                # Calculate the distance and filter vehicles within a unit radius
-                distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
-                if distance <= 1:
-                    processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
+                for poi in self.pois:
+                    for vehicle_id, vehicle_data in data.vehicle_information.items():
+                        # Normalize vehicle positions relative to the center point and radius
+                                                                #pos
+                        normalized_position = [1,
+                            (vehicle_data['position'][0] - poi[0]) / self.radius,
+                            (vehicle_data['position'][1] - poi[1]) / self.radius,
+                        ]
+                        
+                        # Calculate the distance and filter vehicles within a unit radius
+                        distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
+                        if distance <= 1:
+                            processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 
-            # Store processed vehicle information for this data point
-            self.target_information[data.id] = processed_vehicle_information
-            assert len(processed_vehicle_information) <= self.max_vehicles # Ensure the number of vehicles does not exceed max_vehicles
-            if len(processed_vehicle_information) > self.max_vehicles_counter:
-                self.max_vehicles_counter = len(processed_vehicle_information)
+                    # Store processed vehicle information for this data point
+                    self.target_information[data.id] = processed_vehicle_information
+                    assert len(processed_vehicle_information) <= self.max_vehicles # Ensure the number of vehicles does not exceed max_vehicles
+                    if len(processed_vehicle_information) > self.max_vehicles_counter:
+                        self.max_vehicles_counter = len(processed_vehicle_information)
+        else:
+            self.target_information = {}
+
+            for data in tqdm(self.dataset.itertuples(), total=len(self.dataset), desc="Preparing input tensors"):
+                processed_vehicle_information = {}
+                for vehicle_id, vehicle_data in data.vehicle_information.items():
+                    # Normalize vehicle positions relative to the center point and radius
+                                                            #pos
+                    normalized_position = [1,
+                        (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
+                        (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
+                    ]
+                    
+                    # Calculate the distance and filter vehicles within a unit radius
+                    distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
+                    if distance <= 1:
+                        processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
+
+                   #Filter
+                if self.filter_vehicles:
+                    if self.selection_mode == "nearest":
+                        processed_vehicle_information = get_nearest_vehicles(processed_vehicle_information, self.filter_mode, self.k)
+                    elif self.selection_mode == "random":
+                        processed_vehicle_information = get_random_vehicles(processed_vehicle_information, self.filter_mode, self.k)
+                    elif self.selection_mode == "furthest":
+                        processed_vehicle_information = get_furthest_vehicles(processed_vehicle_information, self.filter_mode, self.k)
+                    else:
+                        assert "No correct mode was given!"
+
+                    #if len(processed_vehicle_information) == 0:
+                    #--> Exact mode only 0 or k
+                    #else:
+                    self.target_information[data.id] = processed_vehicle_information
+                    assert len(processed_vehicle_information) <= self.max_vehicles 
+                    if len(processed_vehicle_information) > self.max_vehicles_counter:
+                        self.max_vehicles_counter = len(processed_vehicle_information)
+                else:
+                    self.target_information[data.id] = processed_vehicle_information
+                    assert len(processed_vehicle_information) <= self.max_vehicles 
+                    if len(processed_vehicle_information) > self.max_vehicles_counter:
+                            self.max_vehicles_counter = len(processed_vehicle_information)
+    
     
     def _split_dataset(self, dataset, splits):
         if splits is not None:

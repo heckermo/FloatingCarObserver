@@ -148,7 +148,7 @@ def main(config_file: str):
     base_root = Path(__file__).resolve().parents[2]
 
     with open(config_file, 'r') as f:
-        config = yaml.safe_load(f)
+        config = yaml.load(f, Loader=yaml.FullLoader)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -166,6 +166,31 @@ def main(config_file: str):
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
     logger.addHandler(file_handler)
 
+    with open(os.path.join(base_root, config["dataset_path"], config["dataset_name"][0], "config.yaml"), 'r') as f:
+        data_config = yaml.load(f, Loader=yaml.FullLoader)
+
+    num_grids = 0 #data_config["num_grids"]
+    if num_grids > 1:
+        overlap_mode = True 
+    else:
+        overlap_mode = False    
+
+
+    filter_parameter = list()
+    if config["filter"]:
+        try:
+            filter_mode = config["vehicle_filter_mode"]
+            selection_mode = config["vehicle_selection_mode"]
+            k = config["num_vehicles"]
+
+            filter_parameter = [filter_mode, selection_mode, k]
+        except KeyError as e:
+            print(f"Check Config {e}")
+    else:
+        filter_parameter = None
+
+    print(filter_parameter)
+
     train_dataset = SequenceTfcoDataset(
         dataset_path=[os.path.join(base_root, config['dataset_path'], n) for n in config['dataset_name']],
         sequence_len=config['sequence_len'],
@@ -173,7 +198,9 @@ def main(config_file: str):
         min_timesteps_seen=config['min_timesteps_seen'],
         split=config['train_split'],
         radius=config['radius'],
-        centerpoint=config['centerpoint']
+        centerpoint=config['centerpoint'],
+        overlap_mode=overlap_mode,
+        filter = filter_parameter
     )
     train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=8)
 
@@ -184,11 +211,13 @@ def main(config_file: str):
         min_timesteps_seen=config['min_timesteps_seen'],
         split=config['val_split'],
         radius=config['radius'],
-        centerpoint=config['centerpoint']
+        centerpoint=config['centerpoint'],
+        overlap_mode=overlap_mode,
+        filter = filter_parameter
     )
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=8)
 
-    start_wandb(config, network_configs, filename, project_name=config["project_name"], mode='online')
+    start_wandb(config, network_configs, filename, project_name=config["project_name"], mode=config["wandb_mode"])
 
     # Create the model
     logger.info('Creating model')
