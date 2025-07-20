@@ -1,0 +1,29 @@
+test_split:
+    - - - 0.7
+        - ":"
+model_type: "MaskedSequenceTransformer"
+model_path: "trained_models/skc_r100_o0.7_pr0.1_seq10_mint3_20-06_10-24-43/model_epoch_8.pth"
+data_path: "data/tfco_datasets/total_1_5382_monocon_05"
+dataset_name:
+    - skc_r100_o0_pr0.1_poi100_100
+max_vehicles: 100
+radius: 100
+centerpoint: null
+sequence_len: 10
+min_timesteps_seen: 3
+batch_size: 64
+seed: 13
+project_name: "test_run"
+distance_weight: 400.0
+class_weight: 1.0
+wandb_mode: "online"
+network_configs:
+    MaskedTransformer: 
+        full_attention: false
+        vehicle_only_attention: false
+        embed_dim: 64
+        num_heads: 4
+        num_layers: 2
+        dropout: 0.1
+        use_pos_embed: true
+        use_type_embed: false
