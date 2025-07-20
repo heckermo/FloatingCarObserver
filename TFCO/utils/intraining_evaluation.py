@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import torch
 from typing import List, Tuple
 import wandb
@@ -10,10 +11,7 @@ import pickle
 import matplotlib.pyplot as plt
 from itertools import chain
 
-from codecarbon import EmissionsTracker
-from sklearn.metrics import mean_squared_log_error, r2_score 
-import torch.nn.functional as F 
-import time
+from sklearn.metrics import r2_score, precision_score, recall_score, f1_score
 
 
 class InTrainingEvaluator:
@@ -70,6 +68,12 @@ class InTrainingEvaluator:
             # Apply sigmoid and threshold to outputs
             outputs_binary = (torch.sigmoid(outputs[:, 0]) > 0.5).float()
             outputs_one_mask = outputs_binary == 1
+            #print("Anzahl positiver Vorhersagen:", outputs_one_mask.sum().item())
+            #print("Shape von outputs nach Maskierung:", outputs.shape)
+            #print("Erste paar confidence_scores:", torch.sigmoid(outputs[:, 0])[:5])
+            #print("outputs_binary:", (torch.sigmoid(outputs[:, 0]) > 0.5)[:5])
+            #print("Anzahl positiver Vorhersagen:", (torch.sigmoid(outputs[:, 0]) > 0.5).sum().item())
+
 
             # get the number of vehicles that are 1 in the outputs_binary
             self.additional_information['recovery_count_accuracy'].append((outputs_binary == 1).sum().item()/(outputs_binary.shape[0] + 1e-6))
@@ -117,9 +121,27 @@ class InTrainingEvaluator:
             pred_pos = outputs[:, 1:].detach().cpu().numpy()
             true_pos = target_tensor[relevant_mask][:, 1:].detach().cpu().numpy()
 
-            if pred_pos.shape[0] > 1:
+            if pred_pos.shape[0] > 1 and true_pos.shape == pred_pos.shape:
                 r2 = r2_score(true_pos, pred_pos)
                 self.additional_information["r2_values"].append(r2)
+            else:
+                self.additional_information["r2_values"].append(0.0)
+
+            #Calculate sklearn metrics 
+            y_true = target_tensor[relevant_mask][:, 0].cpu().numpy()
+            y_pred = outputs_binary.cpu().numpy()
+            
+            if y_true.shape == y_pred.shape and y_true.size > 0:
+                precision = precision_score(y_true, y_pred, zero_division=0)
+                self.additional_information["precision"].append(precision)
+                recall = recall_score(y_true, y_pred, zero_division=0)
+                self.additional_information["recall"].append(recall)
+                f1 = f1_score(y_true, y_pred, zero_division=0)
+                self.additional_information["f1_score"].append(f1)
+            else:
+                self.additional_information["precision"].append(0.0)
+                self.additional_information["recall"].append(0.0)
+                self.additional_information["f1_score"].append(0.0)
 
         elif self.mode == 'bev':
             raise NotImplementedError("BEV mode is not implemented.")
@@ -127,7 +149,7 @@ class InTrainingEvaluator:
             raise NotImplementedError(f"Mode '{self.mode}' is not implemented.")
 
     def return_collection(
-        self, print_output: bool = False, train: bool = True, return_loss: bool = False
+        self, print_output: bool = False, train: bool = True, return_loss: bool = False, save_in_file: bool = False, filepath: str = "" 
     ):
         """
         Returns the collected statistics and logs them.
@@ -169,6 +191,12 @@ class InTrainingEvaluator:
         if print_output:
             logger = logging.getLogger(__name__)
             logger.info(", ".join(f"{key}: {value:.4f}" for key, value in return_dict.items()))
+
+        if save_in_file:
+            assert filepath != "", "No filepath is given"
+
+            with open(os.path.join(filepath, "results.txt"), "w") as file:
+                file.write(", ".join(f"{key}: {value:.4f}" for key, value in return_dict.items()))
         
         # Log the results to wandb
         wandb.log(return_dict, step=self.epoch_counter)
@@ -181,7 +209,7 @@ class InTrainingEvaluator:
            # create a distribution plot of the distances
             fig, ax = plt.subplots()
             ax.hist(list(chain.from_iterable(self.results_storage['ones'])), bins=20, alpha=0.5, label='ones')
-            ax.hist(list(chain.from_iterable(self.results_storage['ones'])), bins=20, alpha=0.5, label='zeros')
+            ax.hist(list(chain.from_iterable(self.results_storage["zeros"])), bins=20, alpha=0.5, label='zeros')
             ax.legend()
             plt.savefig(f'{self.path}/hist_{self.epoch_counter}.png')
             logger.info(f"Saved histogram of distances to {self.path}/hist_{self.epoch_counter}.png")
