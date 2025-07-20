@@ -1,6 +1,6 @@
 dataset_path: data/tfco_datasets/total_1_5382_monocon_05
 dataset_name:
-    - skc_r100_o0_pr0.1_poi100_100
+    - skc_r150_o0_pr0.1_poi100_100_nr55000
 train_split:
     - - - ':'
         - 0.7
@@ -10,10 +10,8 @@ train_split:
 val_split:
     - - - 0.7
         - 0.8
-test_split:
-    - - - 0.7
-        - 0.8
-max_vehicles: 100
+
+max_vehicles: 25
 radius: 100
 centerpoint: null
 sequence_len: 10
@@ -22,7 +20,12 @@ num_epochs: 100
 batch_size: 32
 seed: 13
 project_name: "tfco_gridsize"
-track_emissions: True 
+track_emissions: true 
+filter: true
+vehicle_filter_mode: "below"
+vehicle_selection_mode: "nearest"
+num_vehicles: 25
+wandb_mode: "disabled"
 scheduler:
     type: default
     init_lr: 0.0001
@@ -44,16 +47,6 @@ cosine_scheduler_config:
     type: cosine
     startup_steps: 5000
     min_lr: 1e-6
-
-masked_transformer_config:
-    full_attention: false
-    vehicle_only_attention: false
-    embed_dim: 64
-    num_heads: 4
-    num_layers: 2
-    dropout: 0.1
-    use_pos_embed: true
-    use_type_embed: false
 
 network_configs:
     MaskedTransformer: 
