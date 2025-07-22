@@ -228,7 +228,7 @@ def main(config_file: str):
     if config['load_complete_model']:
         model.load_state_dict(torch.load(config['load_complete_model']), strict=False)
 
-    criterion = SingleTrafficPositionLoss(distance_weight=config['distance_weight'], class_weight=config['class_weight'])
+    criterion = SingleTrafficPositionLoss(distance_weight=config['distance_weight'], class_weight=config['class_weight'], soft_weight=config["soft_weight"])
 
     # get the total count of trainable parameters
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

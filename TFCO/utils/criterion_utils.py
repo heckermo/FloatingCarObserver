@@ -312,15 +312,17 @@ class TrafficPositionLoss(nn.Module):
 class SingleTrafficPositionLoss(nn.Module):
     """
     Computes the binary classification loss and l1 loss for the position"""
-    def __init__(self, class_weight: float = 1.0, distance_weight: float = 50.0):
+    def __init__(self, class_weight: float = 1.0, distance_weight: float = 50.0, soft_weight: bool = True):
         """
         Args:
             weight_class (float): Weight for the classification loss.
             distance_weight (float): Weight for the position loss.
+            soft_weight (bool): Indicates whether soft weights are used. 
         """
         super().__init__()
         self.weight_class = class_weight
         self.weight_l2 = distance_weight
+        self.soft_weight = soft_weight
     
     def forward(self, outputs, targets):
         batch_size, max_num_targets, num_features = outputs.shape
@@ -357,7 +359,10 @@ class SingleTrafficPositionLoss(nn.Module):
             # Mean over position dimensions (assuming positions are the last dimension)
             position_loss = position_loss.mean(dim=1)
             # Weight position loss by predicted probabilities (soft weights)
-            weighted_position_loss = (position_loss * relevant_pred_probs).mean()
+            if self.soft_weight:
+                weighted_position_loss = (position_loss * relevant_pred_probs).mean()
+            else:
+                weighted_position_loss = position_loss.mean()
         else:
             weighted_position_loss = torch.tensor(0.0, device=outputs.device)
 

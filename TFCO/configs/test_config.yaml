@@ -16,6 +16,7 @@ seed: 13
 project_name: "test_run"
 distance_weight: 400.0
 class_weight: 1.0
+soft_weight: true
 wandb_mode: "online"
 network_configs:
     MaskedTransformer: 

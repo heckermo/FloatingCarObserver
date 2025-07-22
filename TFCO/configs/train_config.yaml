@@ -33,6 +33,7 @@ scheduler:
     gamma: 0.9
 distance_weight: 400.0
 class_weight: 1.0
+soft_weight: false
 load_complete_model: null
 validation_frequency: 1
 save_frequency: 25

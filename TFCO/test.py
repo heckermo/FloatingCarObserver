@@ -126,7 +126,8 @@ def main(config_path: str):
     # Define the criterion (loss function)
     criterion = SingleTrafficPositionLoss(
         distance_weight=config['distance_weight'],
-        class_weight=config['class_weight']
+        class_weight=config['class_weight'],
+        soft_weight=config["soft_weight"]
     )
     name = config["project_name"] + "_test"
   
