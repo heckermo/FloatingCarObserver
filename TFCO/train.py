@@ -90,27 +90,11 @@ class Trainer:
         self.model.train()
         progress_bar = tqdm(total=len(self.train_loader), desc=f'Epoch {epoch}', leave=False, mininterval=10)
 
-        num_1 = 0
-        num_2 = 0
-        num_3 = 0
-
         for batch in self.train_loader:
-            input_tensor, target_tensor, indexes = batch
-            targets_squeeze = target_tensor.squeeze(0)
-
-            indicators = targets_squeeze[:, 0]
-
-            num_1 += (indicators == 1).sum().item()
-            num_2 += (indicators == 2).sum().item()
-            num_3 += (indicators == 3).sum().item()
-            
-            
             self.process_batch(batch, train=True)
             progress_bar.update(1)
         progress_bar.close()
         self.evaluator.return_collection(print_output=True, train=True)
-
-        return num_1, num_2, num_3
 
     def validate_epoch(self, epoch: int):
         self.model.eval()
@@ -133,7 +117,6 @@ class Trainer:
 
         file_dir = os.path.join(filepath, "additional_information")
         csv_file = os.path.join(file_dir, "epoch_time.csv")
-        txt_file = os.path.join(file_dir, "detection_indicators.txt")
         csv_fieldnames = ["epoch", "duration"]
 
         with open (csv_file, mode="w", newline="") as f:
@@ -145,7 +128,7 @@ class Trainer:
             tracker.start()
             start_time = time.time()
 
-            num_1, num_2, num_3 = self.train_epoch(epoch)
+            self.train_epoch(epoch)
 
             if epoch % self.config['validation_frequency'] == 0:
                 val_loss = self.validate_epoch(epoch)
@@ -160,9 +143,6 @@ class Trainer:
             with open (csv_file, mode="a", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=csv_fieldnames)
                 writer.writerow(csv_row)
-        
-        with open(txt_file, "a") as f:
-            f.write(f"num_1_indicator: {num_1}, num_2_indicator {num_2}, num_3_indicator {num_3}")
 
 def main(config_file: str):
     base_root = Path(__file__).resolve().parents[2]
@@ -189,7 +169,7 @@ def main(config_file: str):
     with open(os.path.join(base_root, config["dataset_path"], config["dataset_name"][0], "config.yaml"), 'r') as f:
         data_config = yaml.load(f, Loader=yaml.FullLoader)
 
-    num_grids = 0 #data_config["num_grids"]
+    num_grids = data_config["num_grids"]
     if num_grids > 1:
         overlap_mode = True 
     else:
