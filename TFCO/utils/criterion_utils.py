@@ -355,7 +355,11 @@ class SingleTrafficPositionLoss(nn.Module):
         # Compute position loss with soft weights
         if relevant_preds_positions.numel() > 0:
             # Compute L2 loss without reduction to keep per-element loss
-            position_loss = F.mse_loss(relevant_preds_positions, relevant_targets_positions, reduction='none')
+            position_loss = F.mse_loss(relevant_preds_positions, relevant_targets_positions, reduction="none")
+
+            #L1 Loss
+            #position_loss = F.l1_loss(relevant_preds_positions, relevant_targets_positions, reduction="none")
+
             # Mean over position dimensions (assuming positions are the last dimension)
             position_loss = position_loss.mean(dim=1)
             # Weight position loss by predicted probabilities (soft weights)
