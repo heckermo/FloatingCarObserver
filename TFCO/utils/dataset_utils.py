@@ -4,6 +4,7 @@ import math
 import yaml
 import torch
 import pandas as pd
+import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 from typing import Optional, Tuple, List
@@ -94,6 +95,13 @@ class SequenceTfcoDataset(Dataset):
                 self.center_point = self.config['CENTER_POINT']
 
         self.max_vehicles_counter = 0
+
+        base_root = Path(__file__).resolve().parents[3]
+        with open (os.path.join(base_root, "data", "stats", "mean.npy"), "rb") as m:
+            self.mean = float(np.load(m))
+
+        with open (os.path.join(base_root, "data", "stats", "std.npy"), "rb") as s:
+            self.std = float(np.load(s))
 
         self._get_allowed_indexes()  # Will create self.allowed_indexes
 
@@ -258,17 +266,19 @@ class SequenceTfcoDataset(Dataset):
                 processed_vehicle_information = {}
                 for vehicle_id, vehicle_data in detected_vehicles.items():
                     # Normalize vehicle positions relative to the center point and radius
-                    normalized_position = [
-                        1,  # Assuming this is a fixed label or value
+                    #normalized_position = [
+                    #    1,  # Assuming this is a fixed label or value
                                                             #poi
-                        (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
-                        (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
-                    ]
+                    #    (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
+                    #    (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
+                    #]
                     
                     # Calculate the distance and filter vehicles within a unit radius
-                    distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
-                    if distance <= 1:
-                        processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
+                    #distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
+                    normalized_position = [1, (vehicle_data["position"][0] - self.mean) / self.std,
+                            (vehicle_data["position"][1] - self.mean) / self.std,]
+                    #if distance <= 1:
+                    processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 
                 if self.filter_vehicles:
                     if self.selection_mode == "nearest":
@@ -299,15 +309,18 @@ class SequenceTfcoDataset(Dataset):
                     for vehicle_id, vehicle_data in data.vehicle_information.items():
                         # Normalize vehicle positions relative to the center point and radius
                                                                 #pos
-                        normalized_position = [1,
-                            (vehicle_data['position'][0] - poi[0]) / self.radius,
-                            (vehicle_data['position'][1] - poi[1]) / self.radius,
-                        ]
+                        #normalized_position = [1,
+                        #    (vehicle_data['position'][0] - poi[0]) / self.radius,
+                        #    (vehicle_data['position'][1] - poi[1]) / self.radius,
+                        #]
                         
                         # Calculate the distance and filter vehicles within a unit radius
-                        distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
-                        if distance <= 1:
-                            processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
+                        #distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
+                        #if distance <= 1:
+                        normalized_position = [1, (vehicle_data["position"][0] - 198.52158002732125) / 496.2554675738291,
+                                               (vehicle_data["position"][1] - 198.52158002732125) / 496.2554675738291]
+
+                        processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 
                     # Store processed vehicle information for this data point
                     self.target_information[data.id] = processed_vehicle_information
@@ -322,15 +335,17 @@ class SequenceTfcoDataset(Dataset):
                 for vehicle_id, vehicle_data in data.vehicle_information.items():
                     # Normalize vehicle positions relative to the center point and radius
                                                             #pos
-                    normalized_position = [1,
-                        (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
-                        (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
-                    ]
+                    #normalized_position = [1,
+                    #    (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
+                    #    (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
+                    #]
                     
                     # Calculate the distance and filter vehicles within a unit radius
-                    distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
-                    if distance <= 1:
-                        processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
+                    #distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
+                    #if distance <= 1:
+                    normalized_position = [1, (vehicle_data["position"][0] - self.mean) / self.std,
+                                               (vehicle_data["position"][1] - self.mean) / self.std,]
+                    processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 
                    #Filter
                 if self.filter_vehicles:
