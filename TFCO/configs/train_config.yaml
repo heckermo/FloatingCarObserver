@@ -21,7 +21,7 @@ batch_size: 32
 seed: 13
 project_name: "tfco_gridsize"
 track_emissions: true 
-filter: true
+filter: false
 vehicle_filter_mode: "below"
 vehicle_selection_mode: "nearest"
 num_vehicles: 25
@@ -33,21 +33,10 @@ scheduler:
     gamma: 0.9
 distance_weight: 400.0
 class_weight: 1.0
-soft_weight: false
+soft_weight: true 
 load_complete_model: null
 validation_frequency: 1
 save_frequency: 25
-
-default_scheduler_config:
-    type: default
-    init_lr: 0.0001
-    step_size: 5000
-    gamma: 0.9
-
-cosine_scheduler_config:
-    type: cosine
-    startup_steps: 5000
-    min_lr: 1e-6
 
 network_configs:
     MaskedTransformer: 
@@ -60,4 +49,6 @@ network_configs:
         use_pos_embed: true
         use_type_embed: false
 
+
+normalization: "zscore" #or "radius"
 

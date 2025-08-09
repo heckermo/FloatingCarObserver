@@ -21,7 +21,7 @@ except ImportError:
 
 class SequenceTfcoDataset(Dataset):
     def __init__(self, dataset_path: List[str], sequence_len: int = 10, max_vehicles: int = 100, min_timesteps_seen: int = 3, overlap_mode: bool = False, filter: list = None,
-                 split: Optional[tuple] = None, radius: Optional[int] = None, centerpoint: Optional[Tuple[int, int]] = None, loop: Optional[int] = None):
+                 split: Optional[tuple] = None, radius: Optional[int] = None, centerpoint: Optional[Tuple[int, int]] = None, loop: Optional[int] = None, normalization: str = "radius"):
         """
         Args:
             dataset_path (str): Path to the dataset folder
@@ -68,6 +68,7 @@ class SequenceTfcoDataset(Dataset):
         self.sequence_len = sequence_len
         self.max_vehicles = max_vehicles
         self.min_timesteps_seen = min_timesteps_seen
+        self.normalization = normalization
 
         try:
             with open(os.path.join(dataset_path[0], 'config.yaml'), 'r', encoding="utf8") as f:
@@ -238,18 +239,20 @@ class SequenceTfcoDataset(Dataset):
 
                 for poi in self.pois:
                     for vehicle_id, vehicle_data in detected_vehicles.items():
-                        # Normalize vehicle positions relative to the center point and radius
-                        normalized_position = [
-                            1,  # Assuming this is a fixed label or value
-                                                                #poi
-                            (vehicle_data['position'][0] - poi[0]) / self.radius,
-                            (vehicle_data['position'][1] - poi[1]) / self.radius,
-                        ]
+                        if self.normalization == "radius":
+                            # Normalize vehicle positions relative to the center point and radius
+                            normalized_position = [1,                                   
+                                (vehicle_data['position'][0] - poi[0]) / self.radius,
+                                (vehicle_data['position'][1] - poi[1]) / self.radius,
+                            ]
+  
+                        elif self.normalization == "zscore":   
+                            # Normalize vehicle positions using z-score 
+                            normalized_position = [1, (vehicle_data["position"][0] - self.mean) / self.std,
+                                                    (vehicle_data["position"][1] - self.mean) / self.std,]
                         
-                        # Calculate the distance and filter vehicles within a unit radius
-                        distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
-                        if distance <= 1:
-                            processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
+                       
+                        processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 
                     # Store processed vehicle information for this data point
                     self.input_information[data.id] = processed_vehicle_information
@@ -265,19 +268,18 @@ class SequenceTfcoDataset(Dataset):
 
                 processed_vehicle_information = {}
                 for vehicle_id, vehicle_data in detected_vehicles.items():
-                    # Normalize vehicle positions relative to the center point and radius
-                    #normalized_position = [
-                    #    1,  # Assuming this is a fixed label or value
-                                                            #poi
-                    #    (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
-                    #    (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
-                    #]
-                    
-                    # Calculate the distance and filter vehicles within a unit radius
-                    #distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
-                    normalized_position = [1, (vehicle_data["position"][0] - self.mean) / self.std,
-                            (vehicle_data["position"][1] - self.mean) / self.std,]
-                    #if distance <= 1:
+                    if self.normalization == "radius":
+                        # Normalize vehicle positions relative to the center point and radius
+                        normalized_position = [1,                                   
+                            (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
+                            (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
+                        ]
+
+                    elif self.normalization == "zscore":   
+                        # Normalize vehicle positions using z-score 
+                        normalized_position = [1, (vehicle_data["position"][0] - self.mean) / self.std,
+                                                  (vehicle_data["position"][1] - self.mean) / self.std,]
+                
                     processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 
                 if self.filter_vehicles:
@@ -307,20 +309,21 @@ class SequenceTfcoDataset(Dataset):
                 
                 for poi in self.pois:
                     for vehicle_id, vehicle_data in data.vehicle_information.items():
-                        # Normalize vehicle positions relative to the center point and radius
-                                                                #pos
-                        #normalized_position = [1,
-                        #    (vehicle_data['position'][0] - poi[0]) / self.radius,
-                        #    (vehicle_data['position'][1] - poi[1]) / self.radius,
-                        #]
+                        if self.normalization == "radius":
+                            # Normalize vehicle positions relative to the center point and radius
+                            normalized_position = [1,                                   
+                                (vehicle_data['position'][0] - poi[0]) / self.radius,
+                                (vehicle_data['position'][1] - poi[1]) / self.radius,
+                            ]
+  
+                        elif self.normalization == "zscore":   
+                            # Normalize vehicle positions using z-score 
+                            normalized_position = [1, (vehicle_data["position"][0] - self.mean) / self.std,
+                                                    (vehicle_data["position"][1] - self.mean) / self.std,]
                         
-                        # Calculate the distance and filter vehicles within a unit radius
-                        #distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
-                        #if distance <= 1:
-                        normalized_position = [1, (vehicle_data["position"][0] - 198.52158002732125) / 496.2554675738291,
-                                               (vehicle_data["position"][1] - 198.52158002732125) / 496.2554675738291]
-
+                       
                         processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
+
 
                     # Store processed vehicle information for this data point
                     self.target_information[data.id] = processed_vehicle_information
@@ -333,18 +336,18 @@ class SequenceTfcoDataset(Dataset):
             for data in tqdm(self.dataset.itertuples(), total=len(self.dataset), desc="Preparing input tensors"):
                 processed_vehicle_information = {}
                 for vehicle_id, vehicle_data in data.vehicle_information.items():
-                    # Normalize vehicle positions relative to the center point and radius
-                                                            #pos
-                    #normalized_position = [1,
-                    #    (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
-                    #    (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
-                    #]
-                    
-                    # Calculate the distance and filter vehicles within a unit radius
-                    #distance = math.sqrt(normalized_position[1]**2 + normalized_position[2]**2)
-                    #if distance <= 1:
-                    normalized_position = [1, (vehicle_data["position"][0] - self.mean) / self.std,
-                                               (vehicle_data["position"][1] - self.mean) / self.std,]
+                    if self.normalization == "radius":
+                        # Normalize vehicle positions relative to the center point and radius
+                        normalized_position = [1,                                   
+                            (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
+                            (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
+                        ]
+
+                    elif self.normalization == "zscore":   
+                        # Normalize vehicle positions using z-score 
+                        normalized_position = [1, (vehicle_data["position"][0] - self.mean) / self.std,
+                                                  (vehicle_data["position"][1] - self.mean) / self.std,]
+                
                     processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 
                    #Filter

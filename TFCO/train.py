@@ -199,6 +199,7 @@ def main(config_file: str):
         split=config['train_split'],
         radius=config['radius'],
         centerpoint=config['centerpoint'],
+        normalization=config["normalization"],
         overlap_mode=overlap_mode,
         filter = filter_parameter
     )
@@ -212,6 +213,7 @@ def main(config_file: str):
         split=config['val_split'],
         radius=config['radius'],
         centerpoint=config['centerpoint'],
+        normalization=config["normalization"],
         overlap_mode=overlap_mode,
         filter = filter_parameter
     )

@@ -5,9 +5,8 @@ import math
 
 
 def create_scheduler(optimizer: optim.Optimizer, config: dict):
-    scheduler_config = config['default_scheduler_config']
     if config['scheduler']['type'] == 'default':
-        return lr_scheduler.StepLR(optimizer, step_size=scheduler_config['step_size'], gamma=scheduler_config['gamma'])
+        return lr_scheduler.StepLR(optimizer, step_size=config["scheduler"]['step_size'], gamma=config["scheduler"]['gamma'])
     elif config['scheduler']['type'] == 'cosine':
         return WarmupCosineAnnealingLR(config)
     else:
