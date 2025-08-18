@@ -150,6 +150,9 @@ def main(config_file: str):
     with open(config_file, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
+    with open(os.path.join(base_root, config["dataset_path"], config["dataset_name"][0], "config.yaml"), 'r') as f:
+        data_config = yaml.load(f, Loader=yaml.FullLoader) 
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     logger = logging.getLogger(__name__)
@@ -157,7 +160,13 @@ def main(config_file: str):
     network_configs = config['network_configs']
     set_seed(config["seed"]) 
 
-    filename = generate_file_name(config["sequence_len"], config["min_timesteps_seen"], config["dataset_name"])
+    num_grids = data_config["num_grids"]
+    if num_grids > 1:
+        overlap_mode = True 
+    else:
+        overlap_mode = False   
+
+    filename = generate_file_name(overlap_mode, config["sequence_len"], config["min_timesteps_seen"], config["dataset_name"])
     path = prepare_path_structure(filename, base_path='trained_models', config_file=config_file)
 
     log_file = os.path.join(path, 'training.log')
@@ -165,15 +174,6 @@ def main(config_file: str):
     file_handler.setLevel(logging.INFO) 
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
     logger.addHandler(file_handler)
-
-    with open(os.path.join(base_root, config["dataset_path"], config["dataset_name"][0], "config.yaml"), 'r') as f:
-        data_config = yaml.load(f, Loader=yaml.FullLoader)
-
-    num_grids = data_config["num_grids"]
-    if num_grids > 1:
-        overlap_mode = True 
-    else:
-        overlap_mode = False    
 
 
     filter_parameter = list()
