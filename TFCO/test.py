@@ -72,6 +72,16 @@ def main(config_path: str):
     with open(config_path, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
+    with open(os.path.join(base_root, config["data_path"], config["dataset_name"][0], "config.yaml"), 'r') as f:
+        data_config = yaml.load(f, Loader=yaml.FullLoader)
+
+    num_grids = data_config["num_grids"]
+    if num_grids > 1:
+        overlap_mode = True 
+    else:
+        overlap_mode = False
+
+
     set_seed(config["seed"]) 
     model_type = config["model_type"]
 
@@ -85,7 +95,7 @@ def main(config_path: str):
     if not os.path.exists(path):
         os.makedirs(path)
 
-    filename = generate_file_name(config["sequence_len"], config["min_timesteps_seen"], config["dataset_name"])
+    filename = generate_file_name(overlap_mode, config["sequence_len"], config["min_timesteps_seen"], config["dataset_name"])
     path_test = os.path.join(path, filename)
     if not os.path.exists(path_test):
         os.makedirs(path_test)
@@ -95,6 +105,19 @@ def main(config_path: str):
     file_handler.setLevel(logging.INFO) 
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
     logger.addHandler(file_handler)
+
+    filter_parameter = list()
+    if config["filter"]:
+        try:
+            filter_mode = config["vehicle_filter_mode"]
+            selection_mode = config["vehicle_selection_mode"]
+            k = config["num_vehicles"]
+
+            filter_parameter = [filter_mode, selection_mode, k]
+        except KeyError as e:
+            print(f"Check Config {e}")
+    else:
+        filter_parameter = None
 
     with open(os.path.join(path_test, "config.yaml"), 'w') as outfile:
         yaml.dump(config, outfile, default_flow_style=False)
@@ -108,7 +131,10 @@ def main(config_path: str):
         min_timesteps_seen=config['min_timesteps_seen'],
         split=config['test_split'],  
         radius=config['radius'],
-        centerpoint=config['centerpoint']
+        centerpoint=config['centerpoint'],
+        normalization=config["normalization"],
+        overlap_mode=overlap_mode,
+        filter = filter_parameter
     )
     test_loader = DataLoader(test_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=8)
 
@@ -126,8 +152,7 @@ def main(config_path: str):
     # Define the criterion (loss function)
     criterion = SingleTrafficPositionLoss(
         distance_weight=config['distance_weight'],
-        class_weight=config['class_weight'],
-        soft_weight=config["soft_weight"]
+        class_weight=config['class_weight']
     )
     name = config["project_name"] + "_test"
   
