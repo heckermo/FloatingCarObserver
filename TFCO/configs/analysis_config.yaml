@@ -1,10 +1,13 @@
 loops: 
     - 0
     - 1
-    - 2
 sequence_length: 
-    - 5
+    - 10
 min_timesteps_seen: 
-    - 1
-dataset_path: '../FCO_modeling/tfco_datasets'
-dataset_name: '5382_monocon_05'
+    - 3
+dataset_path: "../../data/tfco_datasets/total_1_5382_monocon_05"
+dataset_name: "skc_r150_o0_pr0.1_poi100_100_nr55000"
+max_vehicles: 30
+overlap: false 
+radius: 150
+normalization: "radius"

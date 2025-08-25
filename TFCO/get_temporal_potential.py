@@ -16,20 +16,27 @@ from tqdm import tqdm
 import torch.profiler as profiler
 import time
 
+import matplotlib.pyplot as plt
+
 
 from utils.dataset_utils import TfcoDataset, SequenceTfcoDataset
 # Enable cuDNN benchmarking
 torch.backends.cudnn.benchmark = True
 
-def get_temporal_potential(sequence_len: Union[int, None], min_timesteps_seen: Union[int, None], dataset_path: List[str], dataset_name, loop: int) -> Tuple[int, int, int]:
 
-    # Create datasets and data loaders
+
+def get_temporal_potential(sequence_len: Union[int, None], min_timesteps_seen: Union[int, None], dataset_path: List[str], dataset_name, loop: int, max_vehicles: int,
+                           normalization: str, radius: int, overlap: bool) -> Tuple[int, int, int]:
+
     train_dataset = SequenceTfcoDataset(
         dataset_path=[os.path.join(dataset_path, name) for name in dataset_name],
         sequence_len=sequence_len,
-        max_vehicles=200,
+        max_vehicles=max_vehicles,
         min_timesteps_seen=min_timesteps_seen,
-        loop=loop
+        radius=radius,
+        normalization=normalization,
+        loop=loop,
+        overlap_mode=overlap
     )
 
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=False, num_workers=8)
@@ -41,12 +48,17 @@ def get_temporal_potential(sequence_len: Union[int, None], min_timesteps_seen: U
     counter_1 = 0
     counter_2 = 0
     counter_3 = 0
+
+    total_timesteps_seen = 0
+
     # 3: vehicles currently seen in the input
     # 2: vehicles not seen at any timestep
     # 1: vehicles seen at some point in the past but not in the current timestep
     for batch in tqdm(train_loader):
         input_tensor, target_tensor, indexes = batch
-        last_input = input_tensor[:, -1, :]
+
+        timesteps_seen = torch.sum(input_tensor[:, :, :, 0] == 1, dim=1)
+        total_timesteps_seen += timesteps_seen.sum().item()
 
         # Get the number of vehicles
         o = (target_tensor[:, :, 0] == 1).sum(dim=1)
@@ -57,23 +69,27 @@ def get_temporal_potential(sequence_len: Union[int, None], min_timesteps_seen: U
 
         th = (target_tensor[:, :, 0] == 3).sum(dim=1)
         counter_3 += th.sum().item()
+    
+    total_vehicles = counter_1 + counter_2 + counter_3
+    mean_visibility = total_timesteps_seen / (total_vehicles * sequence_len)
 
-    print(f'Total vehicles: {counter_1 + counter_2 + counter_3}')
+    print(f'Total vehicles: {total_vehicles}')
     print(f'Vehicles currently seen in the input: {counter_3} which is {counter_3 / (counter_1 + counter_2 + counter_3) * 100:.2f}%')
     print(f'Vehicles not seen at any timestep: {counter_2} which is {counter_2 / (counter_1 + counter_2 + counter_3) * 100:.2f}%')
     print(f'Vehicles seen at some point in the past but not in the current timestep: {counter_1} which is {counter_1 / (counter_1 + counter_2 + counter_3) * 100:.2f}%')
 
-    return counter_1, counter_2, counter_3
+    print(f"The mean visibility is: {mean_visibility}")
+
+    return counter_1, counter_2, counter_3, mean_visibility
 
 def plot_temporal_potential(result_storage, sequence_length, min_timesteps_seen):
-    import matplotlib.pyplot as plt
 
     plt.figure(figsize=(10, 6))
     for min_timesteps in min_timesteps_seen:
         y_values = []
         for seq_len in sequence_length:
             counters = result_storage.get((seq_len, min_timesteps), (0, 0, 0))
-            counter_1, counter_2, counter_3 = counters
+            counter_1, counter_2, counter_3, mean_visibility = counters
             total = counter_1 + counter_2 + counter_3
             if total > 0:
                 ratio = counter_1 / total
@@ -104,6 +120,10 @@ def main(config_path):
                     min_timesteps_seen=min_timesteps,
                     dataset_path=config['dataset_path'],
                     dataset_name=[config['dataset_name']],
+                    max_vehicles=config["max_vehicles"],
+                    overlap=config["overlap"],
+                    radius=config["radius"],
+                    normalization=config["normalization"],
                     loop=loop
                 )
                 result_storage[(seq_len, min_timesteps)] = results
