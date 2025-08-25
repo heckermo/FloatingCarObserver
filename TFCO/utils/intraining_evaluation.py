@@ -11,7 +11,7 @@ import pickle
 import matplotlib.pyplot as plt
 from itertools import chain
 
-from sklearn.metrics import r2_score, precision_score, recall_score, f1_score
+from sklearn.metrics import r2_score, precision_score, recall_score, f1_score, balanced_accuracy_score
 
 
 class InTrainingEvaluator:
@@ -68,12 +68,6 @@ class InTrainingEvaluator:
             # Apply sigmoid and threshold to outputs
             outputs_binary = (torch.sigmoid(outputs[:, 0]) > 0.5).float()
             outputs_one_mask = outputs_binary == 1
-            #print("Anzahl positiver Vorhersagen:", outputs_one_mask.sum().item())
-            #print("Shape von outputs nach Maskierung:", outputs.shape)
-            #print("Erste paar confidence_scores:", torch.sigmoid(outputs[:, 0])[:5])
-            #print("outputs_binary:", (torch.sigmoid(outputs[:, 0]) > 0.5)[:5])
-            #print("Anzahl positiver Vorhersagen:", (torch.sigmoid(outputs[:, 0]) > 0.5).sum().item())
-
 
             # get the number of vehicles that are 1 in the outputs_binary
             self.additional_information['recovery_count_accuracy'].append((outputs_binary == 1).sum().item()/(outputs_binary.shape[0] + 1e-6))
@@ -85,7 +79,7 @@ class InTrainingEvaluator:
                 distance = torch.mean(torch.norm(outputs[:, 1:] - target_tensor[relevant_mask][:, 1:].to(outputs.device), dim=1)).item()
                 if collect_raw_data:
                     self.results_storage['zeros'].append(torch.norm(outputs[:, 1:] - target_tensor[relevant_mask][:, 1:].to(outputs.device), dim=1).detach().cpu().numpy())
-            self.additional_information['total_mean_euclidean_distance'].append(distance)
+            self.additional_information['total_mean_euclidean_distance (meters)'].append(distance)
 
             # Calculate the mean euclidean distance between predicted and target positions for vehicles that are 1 in the outputs_binary
             target_tensor_device = target_tensor[relevant_mask].to(outputs.device)
@@ -95,27 +89,29 @@ class InTrainingEvaluator:
                 distance_one = torch.mean(torch.norm(outputs[outputs_one_mask][:, 1:] - target_tensor_device[outputs_one_mask][:, 1:], dim=1)).item()
                 if collect_raw_data:
                     self.results_storage['ones'].append(torch.norm(outputs[outputs_one_mask][:, 1:] - target_tensor_device[outputs_one_mask][:, 1:], dim=1).detach().cpu().numpy())
-            self.additional_information['mean_euclidean_distance_ones'].append(distance_one)
+            self.additional_information['mean_euclidean_distance_ones (meters)'].append(distance_one)
 
             # Calculate the mean euclidean distance between predicted and target positions for vehicles that are 0 in the outputs_binary
             if (~outputs_one_mask).sum() == 0:
                 distance_zero = 0
             else:
                 distance_zero = torch.mean(torch.norm(outputs[~outputs_one_mask][:, 1:] - target_tensor_device[~outputs_one_mask][:, 1:], dim=1)).item()
-            self.additional_information['mean_euclidean_distance_zeros'].append(distance_zero)
-
+            self.additional_information['mean_euclidean_distance_zeros (meters)'].append(distance_zero)
 
             all_distances = torch.norm(outputs[:,1:] - target_tensor[relevant_mask][:, 1:].to(outputs.device), dim=1)
 
+            # Calculate the Percentile 90 Error
+            percentile_90_error = torch.quantile(all_distances, 0.9).item()
+            self.additional_information["percentile_90_error"].append(percentile_90_error)
+
             # Calculate Root Mean Squared error
             rmse_distance = torch.sqrt(torch.mean(all_distances **2)).item()
-            self.additional_information["root_mean_squared_error"].append(rmse_distance)
-
+            self.additional_information["root_mean_squared_error (meters)"].append(rmse_distance)
             
             # Calculate Percentage of Correct Keypoints 
-            pck_treshold = 0.5
+            pck_treshold = 2.0
             pck = (all_distances < pck_treshold).float().mean().item()
-            self.additional_information["pck_05"].append(pck)
+            self.additional_information["pck-2.0"].append(pck)
 
             # Calculate R^2 
             pred_pos = outputs[:, 1:].detach().cpu().numpy()
@@ -138,10 +134,13 @@ class InTrainingEvaluator:
                 self.additional_information["recall"].append(recall)
                 f1 = f1_score(y_true, y_pred, zero_division=0)
                 self.additional_information["f1_score"].append(f1)
+                balanced_accuracy = balanced_accuracy_score(y_true, y_pred)
+                self.additional_information["balanced_recovery_accuracy"].append(balanced_accuracy)
             else:
                 self.additional_information["precision"].append(0.0)
                 self.additional_information["recall"].append(0.0)
                 self.additional_information["f1_score"].append(0.0)
+                self.additional_information["balanced_recovery_accuracy"].append(0.0)
 
         elif self.mode == 'bev':
             raise NotImplementedError("BEV mode is not implemented.")
@@ -204,7 +203,7 @@ class InTrainingEvaluator:
         # Save the raw results
         if len(self.results_storage['ones']) > 0:
             with open(f'{self.path}/raw_results_{self.epoch_counter}.pkl', 'wb') as f:
-                pickle.dump(self.raw_results, f)
+                pickle.dump(self.results_storage, f)
         
            # create a distribution plot of the distances
             fig, ax = plt.subplots()
