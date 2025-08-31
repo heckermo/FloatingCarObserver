@@ -98,10 +98,10 @@ class SequenceTfcoDataset(Dataset):
         self.max_vehicles_counter = 0
 
         base_root = Path(__file__).resolve().parents[3]
-        with open (os.path.join(base_root, "data", "stats", "mean.npy"), "rb") as m:
+        with open (os.path.join(base_root, "data", "stats", "ing", "mean.npy"), "rb") as m:
             self.mean = float(np.load(m))
 
-        with open (os.path.join(base_root, "data", "stats", "std.npy"), "rb") as s:
+        with open (os.path.join(base_root, "data", "stats", "ing", "std.npy"), "rb") as s:
             self.std = float(np.load(s))
 
         self._get_allowed_indexes()  # Will create self.allowed_indexes
