@@ -101,8 +101,11 @@ class InTrainingEvaluator:
             all_distances = torch.norm(outputs[:,1:] - target_tensor[relevant_mask][:, 1:].to(outputs.device), dim=1)
 
             # Calculate the Percentile 90 Error
-            percentile_90_error = torch.quantile(all_distances, 0.9).item()
-            self.additional_information["percentile_90_error"].append(percentile_90_error)
+            if all_distances.numel() > 0:
+                percentile_90_error = torch.quantile(all_distances, 0.9).item()
+            else:
+                percentile_90_error = 0.0
+            self.additional_information["percentile_90_error (meters)"] = percentile_90_error
 
             # Calculate Root Mean Squared error
             rmse_distance = torch.sqrt(torch.mean(all_distances **2)).item()
@@ -124,17 +127,27 @@ class InTrainingEvaluator:
                 self.additional_information["r2_values"].append(0.0)
 
             #Calculate sklearn metrics 
-            y_true = target_tensor[relevant_mask][:, 0].cpu().numpy()
-            y_pred = outputs_binary.cpu().numpy()
+            y_true = target_tensor[relevant_mask][:, 0].cpu().numpy().flatten()
+            y_pred = outputs_binary.cpu().numpy().flatten()
             
             if y_true.shape == y_pred.shape and y_true.size > 0:
-                precision = precision_score(y_true, y_pred, zero_division=0)
+                unique_classes = np.unique(y_true)
+
+                if len(unique_classes) < 2:
+                    precision = 0.0
+                    recall = 0.0
+                    f1 = 0.0
+                    balanced_accuracy = 0.0
+                else:
+                    precision = precision_score(y_true, y_pred, zero_division=0)
+                    recall = recall_score(y_true, y_pred, zero_division=0)
+                    f1 = f1_score(y_true, y_pred, zero_division=0)
+                    balanced_accuracy = balanced_accuracy_score(y_true, y_pred)
+
+
                 self.additional_information["precision"].append(precision)
-                recall = recall_score(y_true, y_pred, zero_division=0)
                 self.additional_information["recall"].append(recall)
-                f1 = f1_score(y_true, y_pred, zero_division=0)
                 self.additional_information["f1_score"].append(f1)
-                balanced_accuracy = balanced_accuracy_score(y_true, y_pred)
                 self.additional_information["balanced_recovery_accuracy"].append(balanced_accuracy)
             else:
                 self.additional_information["precision"].append(0.0)
