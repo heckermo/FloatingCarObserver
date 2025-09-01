@@ -99,10 +99,10 @@ class SequenceTfcoDataset(Dataset):
 
         base_root = Path(__file__).resolve().parents[3]
         with open (os.path.join(base_root, "data", "stats", "ing", "mean.npy"), "rb") as m:
-            self.mean = float(np.load(m))
+            self.mean = np.load(m)
 
         with open (os.path.join(base_root, "data", "stats", "ing", "std.npy"), "rb") as s:
-            self.std = float(np.load(s))
+            self.std = np.load(s)
 
         self._get_allowed_indexes()  # Will create self.allowed_indexes
 
@@ -248,8 +248,8 @@ class SequenceTfcoDataset(Dataset):
   
                         elif self.normalization == "zscore":   
                             # Normalize vehicle positions using z-score 
-                            normalized_position = [1, (vehicle_data["position"][0] - self.mean) / self.std,
-                                                    (vehicle_data["position"][1] - self.mean) / self.std,]
+                            normalized_position = [1, (vehicle_data["position"][0] - self.mean[0]) / self.std[0],
+                                                    (vehicle_data["position"][1] - self.mean[1]) / self.std[1],]
                         
                        
                         processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
@@ -277,8 +277,8 @@ class SequenceTfcoDataset(Dataset):
 
                     elif self.normalization == "zscore":   
                         # Normalize vehicle positions using z-score 
-                        normalized_position = [1, (vehicle_data["position"][0] - self.mean) / self.std,
-                                                  (vehicle_data["position"][1] - self.mean) / self.std,]
+                        normalized_position = [1, (vehicle_data["position"][0] - self.mean[0]) / self.std[0],
+                                                  (vehicle_data["position"][1] - self.mean[1]) / self.std[1],]
                 
                     processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 
@@ -318,8 +318,8 @@ class SequenceTfcoDataset(Dataset):
   
                         elif self.normalization == "zscore":   
                             # Normalize vehicle positions using z-score 
-                            normalized_position = [1, (vehicle_data["position"][0] - self.mean) / self.std,
-                                                    (vehicle_data["position"][1] - self.mean) / self.std,]
+                            normalized_position = [1, (vehicle_data["position"][0] - self.mean[0]) / self.std[0],
+                                                    (vehicle_data["position"][1] - self.mean[1]) / self.std[1],]
                         
                        
                         processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
@@ -345,8 +345,8 @@ class SequenceTfcoDataset(Dataset):
 
                     elif self.normalization == "zscore":   
                         # Normalize vehicle positions using z-score 
-                        normalized_position = [1, (vehicle_data["position"][0] - self.mean) / self.std,
-                                                  (vehicle_data["position"][1] - self.mean) / self.std,]
+                        normalized_position = [1, (vehicle_data["position"][0] - self.mean[0]) / self.std[0],
+                                                  (vehicle_data["position"][1] - self.mean[1]) / self.std[1],]
                 
                     processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 

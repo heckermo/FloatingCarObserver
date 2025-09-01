@@ -11,11 +11,12 @@ import pickle
 import matplotlib.pyplot as plt
 from itertools import chain
 
-from sklearn.metrics import r2_score, precision_score, recall_score, f1_score, balanced_accuracy_score
+from sklearn.metrics import r2_score, precision_score, recall_score, f1_score, balanced_accuracy_score, roc_auc_score
+from pathlib import Path
 
 
 class InTrainingEvaluator:
-    def __init__(self, config, path, mode: str = 'raw'):
+    def __init__(self, config, path, normalization, mode: str = 'raw'):
         """
         Initialize the evaluator.
 
@@ -25,11 +26,23 @@ class InTrainingEvaluator:
         self.config = config
         self.path = path
         self.mode = mode  # can be 'raw' or 'bev'
+        self.normalization = normalization
         self.loss = []
         self.additional_losses = defaultdict(list)
         self.additional_information = defaultdict(list)
         self.epoch_counter = 0
         self.results_storage = {'ones': [], 'zeros': []}
+
+        if normalization == "zscore": 
+            base_root = Path(__file__).resolve().parents[3]
+            with open (os.path.join(base_root, "data", "stats", "skc", "mean.npy"), "rb") as m:
+                self.mean = torch.tensor(np.load(m))
+
+            with open (os.path.join(base_root, "data", "stats", "skc", "std.npy"), "rb") as s:
+                self.std = torch.tensor(np.load(s))
+        else:
+            self.mean = torch.tensor([0.0, 0.0])
+            self.std = torch.tensor([1.0, 1.0])
 
     def collect(
         self,
@@ -65,6 +78,9 @@ class InTrainingEvaluator:
 
             outputs = outputs[relevant_mask]
 
+            self.mean = self.mean.clone().detach().to(outputs.device).float()
+            self.std = self.std.clone().detach().to(outputs.device).float()
+
             # Apply sigmoid and threshold to outputs
             outputs_binary = (torch.sigmoid(outputs[:, 0]) > 0.5).float()
             outputs_one_mask = outputs_binary == 1
@@ -74,41 +90,46 @@ class InTrainingEvaluator:
 
             # Calculate the mean euclidean distance between predicted and target positions
             if target_tensor[relevant_mask].shape[0] == 0:
-                distance = 0
+                distance = float("nan")
             else:  
-                distance = torch.mean(torch.norm(outputs[:, 1:] - target_tensor[relevant_mask][:, 1:].to(outputs.device), dim=1)).item()
+                distance = torch.mean(torch.norm((outputs[:, 1:] * self.std + self.mean) - (target_tensor[relevant_mask][:, 1:].to(outputs.device)* self.std + self.mean), dim=1)).item()
                 if collect_raw_data:
-                    self.results_storage['zeros'].append(torch.norm(outputs[:, 1:] - target_tensor[relevant_mask][:, 1:].to(outputs.device), dim=1).detach().cpu().numpy())
+                    self.results_storage['zeros'].append(torch.norm((outputs[:, 1:] * self.std + self.mean) - (target_tensor[relevant_mask][:, 1:].to(outputs.device) * self.std + self.mean), dim=1).detach().cpu().numpy())
             self.additional_information['total_mean_euclidean_distance (meters)'].append(distance)
 
             # Calculate the mean euclidean distance between predicted and target positions for vehicles that are 1 in the outputs_binary
             target_tensor_device = target_tensor[relevant_mask].to(outputs.device)
             if outputs_one_mask.sum() == 0:
-                distance_one = 0
+                distance_one = float("nan")
             else:
-                distance_one = torch.mean(torch.norm(outputs[outputs_one_mask][:, 1:] - target_tensor_device[outputs_one_mask][:, 1:], dim=1)).item()
+                distance_one = torch.mean(torch.norm((outputs[outputs_one_mask][:, 1:] * self.std + self.mean) - (target_tensor_device[outputs_one_mask][:, 1:] * self.std + self.mean), dim=1)).item()
                 if collect_raw_data:
-                    self.results_storage['ones'].append(torch.norm(outputs[outputs_one_mask][:, 1:] - target_tensor_device[outputs_one_mask][:, 1:], dim=1).detach().cpu().numpy())
+                    self.results_storage['ones'].append(torch.norm((outputs[outputs_one_mask][:, 1:] * self.std + self.mean) - (target_tensor_device[outputs_one_mask][:, 1:] * self.std + self.mean), dim=1).detach().cpu().numpy())
             self.additional_information['mean_euclidean_distance_ones (meters)'].append(distance_one)
 
             # Calculate the mean euclidean distance between predicted and target positions for vehicles that are 0 in the outputs_binary
             if (~outputs_one_mask).sum() == 0:
-                distance_zero = 0
+                distance_zero = float("nan")
             else:
-                distance_zero = torch.mean(torch.norm(outputs[~outputs_one_mask][:, 1:] - target_tensor_device[~outputs_one_mask][:, 1:], dim=1)).item()
+                distance_zero = torch.mean(torch.norm((outputs[~outputs_one_mask][:, 1:] * self.std + self.mean) - (target_tensor_device[~outputs_one_mask][:, 1:] * self.std + self.mean), dim=1)).item()
             self.additional_information['mean_euclidean_distance_zeros (meters)'].append(distance_zero)
 
-            all_distances = torch.norm(outputs[:,1:] - target_tensor[relevant_mask][:, 1:].to(outputs.device), dim=1)
+
+            all_distances = torch.norm((outputs[:,1:] * self.std + self.mean) - (target_tensor[relevant_mask][:, 1:].to(outputs.device) * self.std + self.mean), dim=1)
+
 
             # Calculate the Percentile 90 Error
             if all_distances.numel() > 0:
                 percentile_90_error = torch.quantile(all_distances, 0.9).item()
             else:
-                percentile_90_error = 0.0
-            self.additional_information["percentile_90_error (meters)"] = percentile_90_error
+                percentile_90_error = float("nan")
+            self.additional_information["percentile_90_error (meters)"].append(percentile_90_error)
 
             # Calculate Root Mean Squared error
-            rmse_distance = torch.sqrt(torch.mean(all_distances **2)).item()
+            if all_distances.numel() == 0:
+                rmse_distance = float("nan")
+            else:
+                rmse_distance = torch.sqrt(torch.mean(all_distances **2)).item()
             self.additional_information["root_mean_squared_error (meters)"].append(rmse_distance)
             
             # Calculate Percentage of Correct Keypoints 
@@ -116,44 +137,52 @@ class InTrainingEvaluator:
             pck = (all_distances < pck_treshold).float().mean().item()
             self.additional_information["pck-2.0"].append(pck)
 
+            mean = self.mean.to(target_tensor.device)
+            std = self.std.to(target_tensor.device)
+
             # Calculate R^2 
-            pred_pos = outputs[:, 1:].detach().cpu().numpy()
-            true_pos = target_tensor[relevant_mask][:, 1:].detach().cpu().numpy()
+            pred_pos = (outputs[:, 1:]* self.std + self.mean).detach().cpu().numpy()
+            true_pos = (target_tensor[relevant_mask][:, 1:]* std + mean).detach().cpu().numpy()
 
             if pred_pos.shape[0] > 1 and true_pos.shape == pred_pos.shape:
                 r2 = r2_score(true_pos, pred_pos)
                 self.additional_information["r2_values"].append(r2)
             else:
-                self.additional_information["r2_values"].append(0.0)
+                self.additional_information["r2_values"].append(float("nan"))
 
             #Calculate sklearn metrics 
             y_true = target_tensor[relevant_mask][:, 0].cpu().numpy().flatten()
             y_pred = outputs_binary.cpu().numpy().flatten()
+            y_pred_prob = torch.sigmoid(outputs[:, 0]).detach().cpu().numpy().flatten()
             
             if y_true.shape == y_pred.shape and y_true.size > 0:
                 unique_classes = np.unique(y_true)
 
                 if len(unique_classes) < 2:
-                    precision = 0.0
-                    recall = 0.0
-                    f1 = 0.0
+                    precision = float("nan")
+                    recall = float("nan")
+                    f1 = float("nan")
                     balanced_accuracy = 0.0
+                    roc_auc_score = float("nan")
                 else:
                     precision = precision_score(y_true, y_pred, zero_division=0)
                     recall = recall_score(y_true, y_pred, zero_division=0)
                     f1 = f1_score(y_true, y_pred, zero_division=0)
                     balanced_accuracy = balanced_accuracy_score(y_true, y_pred)
+                    roc_auc_score = roc_auc_score(y_true, y_pred_prob)
 
 
                 self.additional_information["precision"].append(precision)
                 self.additional_information["recall"].append(recall)
                 self.additional_information["f1_score"].append(f1)
                 self.additional_information["balanced_recovery_accuracy"].append(balanced_accuracy)
+                self.additional_information["roc_auc_score"].append(roc_auc_score)
             else:
-                self.additional_information["precision"].append(0.0)
-                self.additional_information["recall"].append(0.0)
-                self.additional_information["f1_score"].append(0.0)
+                self.additional_information["precision"].append(float("nan"))
+                self.additional_information["recall"].append(float("nan"))
+                self.additional_information["f1_score"].append(float("nan"))
                 self.additional_information["balanced_recovery_accuracy"].append(0.0)
+                self.additional_information["roc_auc_score"].append(float("nan"))
 
         elif self.mode == 'bev':
             raise NotImplementedError("BEV mode is not implemented.")
@@ -190,7 +219,11 @@ class InTrainingEvaluator:
 
         # Compute mean of additional information
         for key, values in self.additional_information.items():
-            return_dict[key] = np.mean(values).item()
+            check = np.array(values)
+            if np.all(np.isnan(check)) or check.size == 0:
+                return_dict[key] = float("nan")
+            else:
+                return_dict[key] = np.nanmean(values).item()
 
         # Reset the stored losses and information
         self._reset()
@@ -235,7 +268,7 @@ class InTrainingEvaluator:
         self.loss.clear()
         self.additional_losses.clear()
         self.additional_information.clear()
-        self.raw_results = {'ones': [], 'zeros': []}
+        self.results_storage = {'ones': [], 'zeros': []}
 
 if __name__ == "__main__":
     raise NotImplementedError("This script is not meant to be executed")
