@@ -11,6 +11,8 @@ import pickle
 import matplotlib.pyplot as plt
 from itertools import chain
 
+from utils.normalization_utils import load_normalization_stats
+
 from sklearn.metrics import r2_score, precision_score, recall_score, f1_score, balanced_accuracy_score, roc_auc_score
 from pathlib import Path
 
@@ -23,6 +25,7 @@ class InTrainingEvaluator:
         Args:
             mode (str): Evaluation mode, can be 'raw' or 'bev'.
         """
+
         self.config = config
         self.path = path
         self.mode = mode  # can be 'raw' or 'bev'
@@ -33,16 +36,26 @@ class InTrainingEvaluator:
         self.epoch_counter = 0
         self.results_storage = {'ones': [], 'zeros': []}
 
-        if normalization == "zscore": 
-            base_root = Path(__file__).resolve().parents[3]
-            with open (os.path.join(base_root, "data", "stats", "skc", "mean.npy"), "rb") as m:
-                self.mean = torch.tensor(np.load(m))
 
-            with open (os.path.join(base_root, "data", "stats", "skc", "std.npy"), "rb") as s:
-                self.std = torch.tensor(np.load(s))
-        else:
-            self.mean = torch.tensor([0.0, 0.0])
-            self.std = torch.tensor([1.0, 1.0])
+        if normalization == "zscore": 
+            
+            self.mean, self.std = load_normalization_stats(self.path)
+
+            self.mean = torch.tensor(self.mean)
+            self.std = torch.tensor(self.std)
+
+        elif normalization == "radius":
+            #For easier interpretation and clarity of the code, the mean is the center point and the std is the radius 
+            
+            self.radius = torch.tensor(self.config["radius"])            
+            self.centerpoint = self.config["centerpoint"]
+
+            self.std = torch.tensor([self.radius, self.radius])
+            self.mean= torch.tensor([self.centerpoint[0], self.centerpoint[1]])
+        
+        else:    
+            raise ValueError(f"Error: No suitable normalization in config found: {normalization}")
+
 
     def collect(
         self,
@@ -78,15 +91,19 @@ class InTrainingEvaluator:
 
             outputs = outputs[relevant_mask]
 
+
             self.mean = self.mean.clone().detach().to(outputs.device).float()
             self.std = self.std.clone().detach().to(outputs.device).float()
+
 
             # Apply sigmoid and threshold to outputs
             outputs_binary = (torch.sigmoid(outputs[:, 0]) > 0.5).float()
             outputs_one_mask = outputs_binary == 1
 
+
             # get the number of vehicles that are 1 in the outputs_binary
             self.additional_information['recovery_count_accuracy'].append((outputs_binary == 1).sum().item()/(outputs_binary.shape[0] + 1e-6))
+
 
             # Calculate the mean euclidean distance between predicted and target positions
             if target_tensor[relevant_mask].shape[0] == 0:
@@ -97,6 +114,7 @@ class InTrainingEvaluator:
                     self.results_storage['zeros'].append(torch.norm((outputs[:, 1:] * self.std + self.mean) - (target_tensor[relevant_mask][:, 1:].to(outputs.device) * self.std + self.mean), dim=1).detach().cpu().numpy())
             self.additional_information['total_mean_euclidean_distance (meters)'].append(distance)
 
+
             # Calculate the mean euclidean distance between predicted and target positions for vehicles that are 1 in the outputs_binary
             target_tensor_device = target_tensor[relevant_mask].to(outputs.device)
             if outputs_one_mask.sum() == 0:
@@ -106,6 +124,7 @@ class InTrainingEvaluator:
                 if collect_raw_data:
                     self.results_storage['ones'].append(torch.norm((outputs[outputs_one_mask][:, 1:] * self.std + self.mean) - (target_tensor_device[outputs_one_mask][:, 1:] * self.std + self.mean), dim=1).detach().cpu().numpy())
             self.additional_information['mean_euclidean_distance_ones (meters)'].append(distance_one)
+
 
             # Calculate the mean euclidean distance between predicted and target positions for vehicles that are 0 in the outputs_binary
             if (~outputs_one_mask).sum() == 0:
@@ -125,6 +144,7 @@ class InTrainingEvaluator:
                 percentile_90_error = float("nan")
             self.additional_information["percentile_90_error (meters)"].append(percentile_90_error)
 
+
             # Calculate Root Mean Squared error
             if all_distances.numel() == 0:
                 rmse_distance = float("nan")
@@ -132,6 +152,7 @@ class InTrainingEvaluator:
                 rmse_distance = torch.sqrt(torch.mean(all_distances **2)).item()
             self.additional_information["root_mean_squared_error (meters)"].append(rmse_distance)
             
+
             # Calculate Percentage of Correct Keypoints 
             pck_treshold = 2.0
             pck = (all_distances < pck_treshold).float().mean().item()
@@ -139,6 +160,7 @@ class InTrainingEvaluator:
 
             mean = self.mean.to(target_tensor.device)
             std = self.std.to(target_tensor.device)
+
 
             # Calculate R^2 
             pred_pos = (outputs[:, 1:]* self.std + self.mean).detach().cpu().numpy()
@@ -149,6 +171,7 @@ class InTrainingEvaluator:
                 self.additional_information["r2_values"].append(r2)
             else:
                 self.additional_information["r2_values"].append(float("nan"))
+
 
             #Calculate sklearn metrics 
             y_true = target_tensor[relevant_mask][:, 0].cpu().numpy().flatten()

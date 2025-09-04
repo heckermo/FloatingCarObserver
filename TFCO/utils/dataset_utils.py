@@ -12,6 +12,7 @@ from torch.utils.data import Dataset
 from einops import rearrange
 
 from utils.vehicle_filter import get_furthest_vehicles, get_nearest_vehicles, get_random_vehicles
+from utils.normalization_utils import load_normalization_stats
 
 try:
     from utils.bev_utils import create_bev_tensor
@@ -36,6 +37,7 @@ class SequenceTfcoDataset(Dataset):
         else:
             split = [None] * len(dataset_path)
         
+
         self.dataset = None
         for path, split in tqdm(zip(dataset_path, split), desc='Loading datasets'):
             name = path.split('/')[-1]
@@ -55,6 +57,7 @@ class SequenceTfcoDataset(Dataset):
             else:
                 self.dataset = pd.concat([self.dataset, current_dataset], ignore_index=True)
 
+
         
         if filter is not None:
             self.filter_vehicles = True
@@ -65,10 +68,12 @@ class SequenceTfcoDataset(Dataset):
             self.filter_vehicles = False
             self.filter_mode = "-"
 
+
         self.sequence_len = sequence_len
         self.max_vehicles = max_vehicles
         self.min_timesteps_seen = min_timesteps_seen
         self.normalization = normalization
+
 
         try:
             with open(os.path.join(dataset_path[0], 'config.yaml'), 'r', encoding="utf8") as f:
@@ -77,6 +82,7 @@ class SequenceTfcoDataset(Dataset):
             with open(os.path.join(dataset_path[0], 'config.pkl'), 'rb') as f:
                 self.config = pd.read_pickle(f)
             print("Using pickle file for config")
+
 
         if radius is not None:
             self.radius = radius
@@ -97,17 +103,28 @@ class SequenceTfcoDataset(Dataset):
 
         self.max_vehicles_counter = 0
 
-        base_root = Path(__file__).resolve().parents[3]
-        with open (os.path.join(base_root, "data", "stats", "ing", "mean.npy"), "rb") as m:
-            self.mean = np.load(m)
 
-        with open (os.path.join(base_root, "data", "stats", "ing", "std.npy"), "rb") as s:
-            self.std = np.load(s)
+        if normalization == "zscore":
+            # Normalize vehicle positions using z-score
+
+            self.mean, self.std = load_normalization_stats(dataset_path)
+        
+        elif normalization == "radius":
+            # Normalize vehicle positions relative to the center point and radius  
+            # For clarity and to reduce code overhead, the mean is set to the center point and the std to the radius
+
+            self.mean = self.center_point
+            self.std = (self.radius, self.radius)
+        
+        else:
+            raise ValueError(f"Error: No suitable normalization in config found: {normalization}")
+
+
 
         self._get_allowed_indexes()  # Will create self.allowed_indexes
-
         self._create_inputs(overlap_mode)   # Will create self.input_tensors
         self._create_targets(overlap_mode)  # Will create self.target_tensors
+
 
         print(f"Max vehicles in the dataset: {self.max_vehicles_counter}")
         print(f"Overlap mode: {overlap_mode}")
@@ -186,7 +203,7 @@ class SequenceTfcoDataset(Dataset):
         zero_vehicles = target_tensor[:, 0] == 0
         currently_seen_vehicles = input_tensor[-1, :, 0] == 1
         seen_vehicle_counts = torch.sum(input_tensor[:, :, 0] == 1, dim=0)
-
+        
         # Vehicles not seen at enough timesteps based on min_timesteps_seen
         unseen_vehicles = seen_vehicle_counts < self.min_timesteps_seen
         target_tensor[unseen_vehicles, 0] = 2
@@ -265,20 +282,14 @@ class SequenceTfcoDataset(Dataset):
                     key: vehicle for key, vehicle in data.vehicle_information.items()
                     if vehicle.get('detected_label') == 1 or vehicle.get('fco_label') == 1
                 }
-
                 processed_vehicle_information = {}
-                for vehicle_id, vehicle_data in detected_vehicles.items():
-                    if self.normalization == "radius":
-                        # Normalize vehicle positions relative to the center point and radius
-                        normalized_position = [1,                                   
-                            (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
-                            (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
-                        ]
-
-                    elif self.normalization == "zscore":   
-                        # Normalize vehicle positions using z-score 
-                        normalized_position = [1, (vehicle_data["position"][0] - self.mean[0]) / self.std[0],
-                                                  (vehicle_data["position"][1] - self.mean[1]) / self.std[1],]
+                
+                for vehicle_id, vehicle_data in detected_vehicles.items(): 
+                    
+                    normalized_position = [1,
+                            (vehicle_data["position"][0] - self.mean[0]) / self.std[0],
+                            (vehicle_data["position"][1] - self.mean[1]) / self.std[1],
+                            ]
                 
                     processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 
@@ -335,18 +346,12 @@ class SequenceTfcoDataset(Dataset):
 
             for data in tqdm(self.dataset.itertuples(), total=len(self.dataset), desc="Preparing input tensors"):
                 processed_vehicle_information = {}
+                
                 for vehicle_id, vehicle_data in data.vehicle_information.items():
-                    if self.normalization == "radius":
-                        # Normalize vehicle positions relative to the center point and radius
-                        normalized_position = [1,                                   
-                            (vehicle_data['position'][0] - self.center_point[0]) / self.radius,
-                            (vehicle_data['position'][1] - self.center_point[1]) / self.radius,
-                        ]
-
-                    elif self.normalization == "zscore":   
-                        # Normalize vehicle positions using z-score 
-                        normalized_position = [1, (vehicle_data["position"][0] - self.mean[0]) / self.std[0],
-                                                  (vehicle_data["position"][1] - self.mean[1]) / self.std[1],]
+                    normalized_position = [1,
+                                (vehicle_data["position"][0] - self.mean[0]) / self.std[0],
+                                (vehicle_data["position"][1] - self.mean[1]) / self.std[1],
+                                ]
                 
                     processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 
@@ -361,9 +366,6 @@ class SequenceTfcoDataset(Dataset):
                     else:
                         assert "No correct mode was given!"
 
-                    #if len(processed_vehicle_information) == 0:
-                    #--> Exact mode only 0 or k
-                    #else:
                     self.target_information[data.id] = processed_vehicle_information
                     assert len(processed_vehicle_information) <= self.max_vehicles 
                     if len(processed_vehicle_information) > self.max_vehicles_counter:
