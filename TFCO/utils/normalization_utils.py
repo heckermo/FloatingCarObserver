@@ -1,0 +1,67 @@
+import numpy as np
+import os
+from pathlib import Path
+
+base_root = Path(__file__).resolve().parents[3]
+
+
+def extract_simulation_information(dataset_path):
+
+    """
+    Function that extract the relevant information of the simulation to load normalization stats. 
+    """
+
+    city_tag = dataset_path[0]
+    radius = dataset_path[1]
+
+    city_radius = city_tag + "_" + radius
+
+    return city_tag, radius, city_radius
+
+
+def denormalize(target_tensor, std, mean):
+    """
+    Function that denormalize the given target_tensor 
+    """
+    return target_tensor * std + mean 
+
+
+def load_normalization_stats(path):
+
+    """
+    Function that return the right mean and standard deviation for the use dataset. 
+    """
+
+    if type(path) == list:
+        for dataset_path in path:
+            dataset_path = dataset_path.split(os.sep)[-1]
+            dataset_path = dataset_path.split("_")
+
+            city_tag, radius, city_radius = extract_simulation_information(dataset_path)
+
+
+    else:
+        dataset_path = path.split(os.sep)[-1]
+        dataset_path = dataset_path.split("_")
+
+        city_tag, radius, city_radius = extract_simulation_information(dataset_path)
+
+    stats_path = os.path.join("data", "stats", city_tag, city_radius)
+
+    print(f"city_radius: {city_radius}")
+    print(f"Gesamt Pfad {os.path.join(base_root, stats_path)}")
+    
+    try: 
+        with open (os.path.join(base_root, stats_path, "mean.npy"), "rb") as m:
+            mean = np.load(m)
+
+        with open (os.path.join(base_root, stats_path, "std.npy"), "rb") as s:
+            std = np.load(s)
+
+    except Exception as e:
+        print(f"Error: {e} - Check normalization stats for {stats_path}")
+        return np.array([0.0, 0.0]), np.array([1.0, 1.0])
+    
+    print(f"loaded mean {mean} and std {std} from {stats_path}")
+    
+    return mean, std 
