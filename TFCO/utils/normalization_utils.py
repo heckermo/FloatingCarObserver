@@ -47,9 +47,7 @@ def load_normalization_stats(path):
         city_tag, radius, city_radius = extract_simulation_information(dataset_path)
 
     stats_path = os.path.join("data", "stats", city_tag, city_radius)
-
-    print(f"city_radius: {city_radius}")
-    print(f"Gesamt Pfad {os.path.join(base_root, stats_path)}")
+    
     
     try: 
         with open (os.path.join(base_root, stats_path, "mean.npy"), "rb") as m:
