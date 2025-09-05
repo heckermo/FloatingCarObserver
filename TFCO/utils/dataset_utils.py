@@ -58,15 +58,18 @@ class SequenceTfcoDataset(Dataset):
                 self.dataset = pd.concat([self.dataset, current_dataset], ignore_index=True)
 
 
-        
+
+        #Extract all necessary parameters for vehicle filtering         
         if filter is not None:
+            
             self.filter_vehicles = True
             self.filter_mode = filter[0]
-            self.selection_mode = filter[1]
-            self.k = filter[2]
+            self.filter_selection_mode = filter[1]
+            self.filter_k = filter[2]
+        
         else:
+            
             self.filter_vehicles = False
-            self.filter_mode = "-"
 
 
         self.sequence_len = sequence_len
@@ -293,18 +296,11 @@ class SequenceTfcoDataset(Dataset):
                 
                     processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 
+                
+                #If Filter is true, the vehicles are filtered according to the given paramters 
                 if self.filter_vehicles:
-                    if self.selection_mode == "nearest":
-                        processed_vehicle_information = get_nearest_vehicles(processed_vehicle_information, self.filter_mode, self.k)
-                    elif self.selection_mode == "random":
-                        processed_vehicle_information = get_random_vehicles(processed_vehicle_information, self.filter_mode, self.k)
-                    elif self.selection_mode == "furthest":
-                        processed_vehicle_information = get_furthest_vehicles(processed_vehicle_information, self.filter_mode, self.k)
-                    else:
-                        assert "No correct mode was given!"
-
-                    # 0 or k --> exact
-                    self.input_information[data.id] = processed_vehicle_information
+                    self.input_information[data.id] = self._get_filtered_vehicle_information(processed_vehicle_information)
+                
                 else:
                     self.input_information[data.id] = processed_vehicle_information
 
@@ -355,24 +351,24 @@ class SequenceTfcoDataset(Dataset):
                 
                     processed_vehicle_information[vehicle_id] = torch.tensor(normalized_position)
 
-                   #Filter
+                
+                #If Filter is true, the vehicles are filtered according to the given paramters 
                 if self.filter_vehicles:
-                    if self.selection_mode == "nearest":
-                        processed_vehicle_information = get_nearest_vehicles(processed_vehicle_information, self.filter_mode, self.k)
-                    elif self.selection_mode == "random":
-                        processed_vehicle_information = get_random_vehicles(processed_vehicle_information, self.filter_mode, self.k)
-                    elif self.selection_mode == "furthest":
-                        processed_vehicle_information = get_furthest_vehicles(processed_vehicle_information, self.filter_mode, self.k)
-                    else:
-                        assert "No correct mode was given!"
 
+                    processed_vehicle_information = self._get_filtered_vehicle_information(processed_vehicle_information)
                     self.target_information[data.id] = processed_vehicle_information
+
                     assert len(processed_vehicle_information) <= self.max_vehicles 
+                    
                     if len(processed_vehicle_information) > self.max_vehicles_counter:
                         self.max_vehicles_counter = len(processed_vehicle_information)
+                
                 else:
+                    
                     self.target_information[data.id] = processed_vehicle_information
+                    
                     assert len(processed_vehicle_information) <= self.max_vehicles 
+                    
                     if len(processed_vehicle_information) > self.max_vehicles_counter:
                             self.max_vehicles_counter = len(processed_vehicle_information)
     
@@ -401,6 +397,29 @@ class SequenceTfcoDataset(Dataset):
                 return dataset
         else:
             return dataset
+        
+    def _get_filtered_vehicle_information(self, processed_vehicle_information):
+
+        """
+        Function 
+        """
+
+        if self.filter_selection_mode == "nearest":
+            filtered_vehicle_information = get_nearest_vehicles(processed_vehicle_information, self.filter_mode, self.filter_k)
+        
+        elif self.filter_selection_mode == "random":
+            filtered_vehicle_information = get_random_vehicles(processed_vehicle_information, self.filter_mode, self.filter_k)
+        
+        elif self.filter_selection_mode == "furthest":
+            filtered_vehicle_information = get_furthest_vehicles(processed_vehicle_information, self.filter_mode, self.filter_k)
+        
+        else:
+            raise ValueError(f"No correct mode was given! Check config {self.filter_selection_mode}")
+
+        return filtered_vehicle_information
+
+
+
 
 class TfcoDataset(Dataset):
     def __init__(self, dataset_path: str, sequence_len: int = 5, image_size: Optional[int] = None, max_vehicles: Optional[int] = None,

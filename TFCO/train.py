@@ -185,11 +185,11 @@ def main(config_file: str):
 
             filter_parameter = [filter_mode, selection_mode, k]
         except KeyError as e:
-            print(f"Check Config {e}")
+            raise KeyError(f"Check Config, not all parameters for filtering vehicles are specified {e}\n")
     else:
         filter_parameter = None
 
-    print(filter_parameter)
+    if filter_parameter is not None: print(f"Following filtering is applied: {filter_parameter}")
 
     train_dataset = SequenceTfcoDataset(
         dataset_path=[os.path.join(base_root, config['dataset_path'], n) for n in config['dataset_name']],
