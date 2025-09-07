@@ -5,9 +5,15 @@ sequence_length:
     - 10
 min_timesteps_seen: 
     - 3
+
 dataset_path: "../../data/tfco_datasets/total_1_5382_monocon_05"
 dataset_name: "skc_r150_o0_pr0.1_poi100_100_nr55000"
 max_vehicles: 30
 overlap: false 
 radius: 150
-normalization: "radius"
+normalization: "zscore"
+
+filter: true
+vehicle_filter_mode: "exact"
+vehicle_selection_mode: "nearest"
+num_vehicles: 25
