@@ -15,11 +15,11 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import time
 
-from models import MaskedSequenceTransformer
+from models import MaskedSequenceTransformer, MaskedSequenceTransformerOverlap
 from utils.autoencoder_utils import prepare_path_structure
 from utils.path_utils import generate_file_name
 from utils.criterion_utils import CombinedLoss, TrafficPositionLoss, SingleTrafficPositionLoss
-from utils.dataset_utils import SequenceTfcoDataset
+from utils.dataset_utils import SequenceTfcoDataset, SequenceTfcoDatasetOverlap
 from utils.scheduler_utils import create_scheduler
 from utils.train_utils import set_seed
 from utils.wandb_utils import start_wandb
@@ -160,6 +160,7 @@ def main(config_file: str):
     network_configs = config['network_configs']
     set_seed(config["seed"]) 
 
+    #Necessary for filename generation
     num_grids = data_config["num_grids"]
     if num_grids > 1:
         overlap_mode = True 
@@ -191,39 +192,70 @@ def main(config_file: str):
 
     if filter_parameter is not None: print(f"Following filtering is applied: {filter_parameter}")
 
-    train_dataset = SequenceTfcoDataset(
-        dataset_path=[os.path.join(base_root, config['dataset_path'], n) for n in config['dataset_name']],
-        sequence_len=config['sequence_len'],
-        max_vehicles=config['max_vehicles'],
-        min_timesteps_seen=config['min_timesteps_seen'],
-        split=config['train_split'],
-        radius=config['radius'],
-        centerpoint=config['centerpoint'],
-        normalization=config["normalization"],
-        overlap_mode=overlap_mode,
-        filter = filter_parameter
-    )
-    train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=8)
+    if config["overlap_architecture"]:
+        train_dataset = SequenceTfcoDatasetOverlap(
+            dataset_path=[os.path.join(base_root, config['dataset_path'], n) for n in config['dataset_name']],
+            sequence_len=config['sequence_len'],
+            max_vehicles=config['max_vehicles'],
+            min_timesteps_seen=config['min_timesteps_seen'],
+            split=config['train_split'],
+            radius=config['radius'],
+            centerpoint=config['centerpoint'],
+            normalization=config["normalization"],
+            filter = filter_parameter
+            )
+        
+        val_dataset = SequenceTfcoDatasetOverlap(
+            dataset_path=[os.path.join(base_root, config['dataset_path'], n) for n in config['dataset_name']],
+            sequence_len=config['sequence_len'],
+            max_vehicles=config['max_vehicles'],
+            min_timesteps_seen=config['min_timesteps_seen'],
+            split=config['val_split'],
+            radius=config['radius'],
+            centerpoint=config['centerpoint'],
+            normalization=config["normalization"],
+            filter = filter_parameter
+            )
+        
+        model = MaskedSequenceTransformerOverlap(sequence_len=config['sequence_len'], max_vehicles=config['max_vehicles'], **network_configs['MaskedTransformer'])
 
-    val_dataset = SequenceTfcoDataset(
-        dataset_path=[os.path.join(base_root, config['dataset_path'], n) for n in config['dataset_name']],
-        sequence_len=config['sequence_len'],
-        max_vehicles=config['max_vehicles'],
-        min_timesteps_seen=config['min_timesteps_seen'],
-        split=config['val_split'],
-        radius=config['radius'],
-        centerpoint=config['centerpoint'],
-        normalization=config["normalization"],
-        overlap_mode=overlap_mode,
-        filter = filter_parameter
-    )
+        logger.info("Use overlap grid architectures")
+    else:
+        train_dataset = SequenceTfcoDataset(
+            dataset_path=[os.path.join(base_root, config['dataset_path'], n) for n in config['dataset_name']],
+            sequence_len=config['sequence_len'],
+            max_vehicles=config['max_vehicles'],
+            min_timesteps_seen=config['min_timesteps_seen'],
+            split=config['train_split'],
+            radius=config['radius'],
+            centerpoint=config['centerpoint'],
+            normalization=config["normalization"],
+            filter = filter_parameter
+            )
+        
+        val_dataset = SequenceTfcoDataset(
+            dataset_path=[os.path.join(base_root, config['dataset_path'], n) for n in config['dataset_name']],
+            sequence_len=config['sequence_len'],
+            max_vehicles=config['max_vehicles'],
+            min_timesteps_seen=config['min_timesteps_seen'],
+            split=config['val_split'],
+            radius=config['radius'],
+            centerpoint=config['centerpoint'],
+            normalization=config["normalization"],
+            filter = filter_parameter
+            )
+        
+        model = MaskedSequenceTransformer(sequence_len=config['sequence_len'], max_vehicles=config['max_vehicles'], **network_configs['MaskedTransformer'])
+
+        logger.info("Use single grid architectures")
+        
+    train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=8)
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=8)
 
     start_wandb(config, network_configs, filename, project_name=config["project_name"], mode=config["wandb_mode"])
 
     # Create the model
     logger.info('Creating model')
-    model = MaskedSequenceTransformer(sequence_len=config['sequence_len'], max_vehicles=config['max_vehicles'], **network_configs['MaskedTransformer'])
 
     model.to(device)
 

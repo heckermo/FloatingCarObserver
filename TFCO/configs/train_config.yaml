@@ -38,6 +38,8 @@ load_complete_model: null
 validation_frequency: 1
 save_frequency: 25
 
+overlap_architecture: false
+
 network_configs:
     MaskedTransformer: 
         full_attention: false
