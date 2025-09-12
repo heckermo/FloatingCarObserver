@@ -428,6 +428,143 @@ class MaskedSequenceTransformer(nn.Module):
         predictions = self.prediction_head(transformer_output)  # (batch_size, sequence_len, max_vehicles, 3)
 
         return predictions
+    
+
+class MaskedSequenceTransformerOverlap(nn.Module):
+    """
+    A transformer-based model for processing masked sequences with attention mechanisms.
+
+    Args:
+        sequence_len (int): Length of the input sequence.  # Number of sequence elements to process.
+        max_vehicles (int): Maximum number of vehicles represented in the sequence.  # Constraint for sequence padding.
+        full_attention (bool): Whether to use full attention across all elements.  # True for full attention, False otherwise.
+        vehicle_only_attention (bool): Whether to restrict attention to vehicles only the same vehicles in different time steps.  
+        embed_dim (int): Dimensionality of the embedding space.  # Size of embeddings per token.
+        num_heads (int): Number of attention heads in the transformer.  # Enables multi-head attention.
+        num_layers (int): Number of transformer layers.  # Determines the depth of the transformer.
+        dropout (float): Dropout probability for regularization.  # Prevents overfitting.
+        num_encoder_layers (int): Number of encoder layers.  # Layers in the encoder stack.
+    """
+    def __init__(self, sequence_len: int, max_vehicles: int, full_attention: bool = False, vehicle_only_attention: bool = False,
+                 embed_dim: int = 64, num_heads: int = 8, dropout: float = 0.1, num_layers: int = 4,
+                 use_pos_embed: bool = True, use_type_embed: bool = True):
+        super(MaskedSequenceTransformerOverlap, self).__init__()
+        
+        self.sequence_len = sequence_len
+        self.max_vehicles = max_vehicles
+        self.full_attention = full_attention
+        self.vehicle_only_attention = vehicle_only_attention
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.dropout = dropout
+        self.num_layers = num_layers
+        self.use_pos_embed = use_pos_embed
+        self.use_type_embed = use_type_embed
+
+        # Corrected embed_dim reference
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=self.embed_dim, nhead=self.num_heads, dropout=self.dropout
+        )
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer, num_layers=self.num_layers
+        )
+
+        # Embedding layers
+        self.raw_traffic_embedder = nn.Linear(7, self.embed_dim)
+
+        # Positional and type embeddings
+        self.pos_embedding = nn.Embedding(self.sequence_len, self.embed_dim)
+        self.type_embedding = nn.Embedding(self.max_vehicles, self.embed_dim)
+
+        self.prediction_head = nn.Linear(self.embed_dim, 3)
+    
+    def forward(self, input_sequence: torch.Tensor):
+        batch_size, sequence_len, max_vehicles, num_features = input_sequence.shape
+        assert sequence_len == self.sequence_len
+        assert max_vehicles == self.max_vehicles
+        assert num_features == 7
+
+        # Create a mask for zero inputs to avoid attending to zero inputs
+        zero_mask = (input_sequence.sum(dim=-1) == 0)  # Shape: (batch_size, sequence_len, max_vehicles)
+        
+        # Embed the raw traffic data
+        input_sequence = self.raw_traffic_embedder(input_sequence)  # (batch_size, sequence_len, max_vehicles, embed_dim)
+        
+        # Flatten the sequence for the transformer
+        flattened_sequence = rearrange(input_sequence, 'b s v e -> b (s v) e')  # (batch_size, sequence_len * max_vehicles, embed_dim)
+        
+        # Create time step indices for each position in the flattened sequence
+        time_step_indices = torch.arange(sequence_len).unsqueeze(1).repeat(1, max_vehicles).view(-1).to(input_sequence.device)
+        time_step_indices = time_step_indices.unsqueeze(0).repeat(batch_size, 1)  # (batch_size, sequence_len * max_vehicles)
+        
+        # Create vehicle indices for each position
+        vehicle_indices = torch.arange(max_vehicles).unsqueeze(0).repeat(sequence_len, 1).view(-1).to(input_sequence.device)
+        vehicle_indices = vehicle_indices.unsqueeze(0).repeat(batch_size, 1)  # (batch_size, sequence_len * max_vehicles)
+        
+        # Create attention masks
+        time_step_diff = time_step_indices.unsqueeze(2) != time_step_indices.unsqueeze(1)
+        vehicle_diff = vehicle_indices.unsqueeze(2) != vehicle_indices.unsqueeze(1)
+        
+        if self.vehicle_only_attention:
+            attention_mask = vehicle_diff # (batch_size, seq_len * max_vehicles, seq_len * max_vehicles)
+        else:
+            # Mask positions where both time steps and vehicle indices are different
+            attention_mask = time_step_diff & vehicle_diff  # (batch_size, seq_len * max_vehicles, seq_len * max_vehicles)
+        
+        # Incorporate the zero mask
+        zero_mask_flat = zero_mask.view(batch_size, -1)  # (batch_size, sequence_len * max_vehicles)
+        zero_mask_expanded = zero_mask_flat.unsqueeze(1) | zero_mask_flat.unsqueeze(2)
+
+        if self.full_attention:
+            attention_mask = zero_mask_expanded
+        else:
+            attention_mask = attention_mask | zero_mask_expanded  # Combine with existing attention mask
+
+        # Convert the attention mask for the transformer (needs to be float with -inf where masked)
+        attention_mask = attention_mask.float()
+        attention_mask = attention_mask.masked_fill(attention_mask == 1, float('-inf'))
+        attention_mask = attention_mask.masked_fill(attention_mask == 0, float(0.0))
+
+        # Expand attention mask for multiple heads
+        attention_mask = attention_mask.unsqueeze(1).repeat(1, self.num_heads, 1, 1)
+        attention_mask = attention_mask.view(batch_size * self.num_heads, sequence_len * max_vehicles, sequence_len * max_vehicles)
+
+        vehicle_indices = torch.arange(self.max_vehicles).unsqueeze(0).repeat(self.sequence_len, 1).view(-1).to(input_sequence.device)
+        vehicle_indices = vehicle_indices.unsqueeze(0).repeat(batch_size, 1)
+
+        time_step_indices = torch.arange(self.sequence_len).unsqueeze(1).repeat(1, self.max_vehicles).view(-1).to(input_sequence.device)
+        time_step_indices = time_step_indices.unsqueeze(0).repeat(batch_size, 1)  # Shape: (batch_size, sequence_len * max_vehicles)
+
+        # Add positional and type embeddings
+        if self.use_pos_embed:  
+            pos_embed = self.pos_embedding(time_step_indices)  # (batch_size, sequence_len * max_vehicles, embed_dim)
+        else:
+            pos_embed = torch.zeros(batch_size, sequence_len * max_vehicles, self.embed_dim).to(input_sequence.device)
+        
+        if self.use_type_embed:
+            type_embed = self.type_embedding(vehicle_indices) # (batch_size, sequence_len * max_vehicles, embed_dim)
+        else:
+            type_embed = torch.zeros(batch_size, sequence_len * max_vehicles, self.embed_dim).to(input_sequence.device)
+
+        flattened_sequence = flattened_sequence + pos_embed + type_embed
+
+        # Transpose for transformer input (seq_len, batch_size, embed_dim)
+        transformer_input = flattened_sequence.transpose(0, 1)  # (seq_len * max_vehicles, batch_size, embed_dim)
+
+        # Apply transformer encoder
+        transformer_output = self.transformer_encoder(transformer_input, mask=attention_mask)
+
+        # Transpose back and reshape
+        transformer_output = transformer_output.transpose(0, 1)  # (batch_size, seq_len * max_vehicles, embed_dim)
+        transformer_output = transformer_output.view(batch_size, sequence_len, max_vehicles, self.embed_dim)
+
+        # Only use the information of the last time step
+        transformer_output = transformer_output[:, -1, :, :] #(batch_size, max_vehicles, embed_dim)
+
+        # Apply prediction head
+        predictions = self.prediction_head(transformer_output)  # (batch_size, sequence_len, max_vehicles, 3)
+
+        return predictions
 
 
 if __name__ == "__main__":   
