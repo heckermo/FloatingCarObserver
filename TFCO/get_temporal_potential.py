@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-from utils.dataset_utils import TfcoDataset, SequenceTfcoDataset
+from utils.dataset_utils import SequenceTfcoDataset
 # Enable cuDNN benchmarking
 torch.backends.cudnn.benchmark = True
 
@@ -54,7 +54,7 @@ def extract_filter_parameters(config):
 
 
 def get_temporal_potential(sequence_len: Union[int, None], min_timesteps_seen: Union[int, None], dataset_path: List[str], dataset_name, loop: int, max_vehicles: int,
-                           normalization: str, radius: int, overlap: bool, filter_parameters: List) -> Tuple[Dict, Dict]:
+                           normalization: str, radius: int, filter_parameters: List) -> Tuple[int, int, int]:
     
     """
     Computes temporal potential and visibility statistics of vehicles in the dataset.
@@ -70,7 +70,7 @@ def get_temporal_potential(sequence_len: Union[int, None], min_timesteps_seen: U
     """
 
     # Create datasets and data loaders
-    train_dataset = SequenceTfcoDataset(
+    dataset = SequenceTfcoDataset(
         dataset_path=[os.path.join(dataset_path, name) for name in dataset_name],
         sequence_len=sequence_len,
         max_vehicles=max_vehicles,
@@ -78,13 +78,12 @@ def get_temporal_potential(sequence_len: Union[int, None], min_timesteps_seen: U
         radius=radius,
         normalization=normalization,
         loop=loop,
-        overlap_mode=overlap,
         filter=filter_parameters
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=False, num_workers=8)
+    data_loader = DataLoader(dataset, batch_size=16, shuffle=False, num_workers=8)
 
-    if len(train_loader) == 0:
+    if len(data_loader) == 0:
         raise ValueError(f'No data found for the given configuration: sequence_len={sequence_len}, min_timesteps_seen={min_timesteps_seen}, loop={loop}') 
 
     past_visible_count = 0
@@ -97,7 +96,7 @@ def get_temporal_potential(sequence_len: Union[int, None], min_timesteps_seen: U
     vehicle_visibility_ratios = list()
     all_timesteps_length = list()
     
-    for batch in tqdm(train_loader):
+    for batch in tqdm(data_loader):
         input_tensor, target_tensor, indexes = batch
 
         timesteps_seen_per_vehicle = torch.sum(input_tensor[:, :, :, 0] == 1, dim=1)
@@ -105,7 +104,7 @@ def get_temporal_potential(sequence_len: Union[int, None], min_timesteps_seen: U
 
         vehicle_visibility_ratios.extend((timesteps_seen_per_vehicle.cpu().numpy() / sequence_len).flatten())
         
-        timesteps_visibility = get_mean_timesteps_visibility(input_tensor)
+        timesteps_visibility = get_timesteps_visibility(input_tensor)
         all_timesteps_length.extend(timesteps_visibility)
 
         # Get the number of vehicles
@@ -153,7 +152,7 @@ def get_temporal_potential(sequence_len: Union[int, None], min_timesteps_seen: U
     return metrics, plot_necessary
 
 
-def get_mean_timesteps_visibility(input_tensor: torch.Tensor):
+def get_timesteps_visibility(input_tensor: torch.Tensor):
     
     """
     Computes the mean length of timesteps visibility for all vehicles.
@@ -164,6 +163,7 @@ def get_mean_timesteps_visibility(input_tensor: torch.Tensor):
     Returns:
         timesteps length across all vehicles in the batch
     """
+
     visibility = (input_tensor[:, :, :, 0] == 1).cpu().numpy() 
     timestep_streaks = []
 
@@ -250,7 +250,7 @@ def plot_distributions(metrics: Dict, prefix: str):
 
 
 def main(config_path):
-    
+
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
 
@@ -268,7 +268,6 @@ def main(config_path):
                     dataset_path=config['dataset_path'],
                     dataset_name=[config['dataset_name']],
                     max_vehicles=config["max_vehicles"],
-                    overlap=config["overlap"],
                     radius=config["radius"],
                     normalization=config["normalization"],
                     filter_parameters=filter_parameters,
@@ -277,7 +276,7 @@ def main(config_path):
                 result_storage[(seq_len, min_timesteps)] = results
 
 
-                prefix = f'r{config["radius"]}_o{config["overlap"]}_loop{loop}_seq{seq_len}_min{min_timesteps}'
+                prefix = f'r{config["radius"]}_loop{loop}_seq{seq_len}_min{min_timesteps}_'
                 plot_distributions(plot_necessary, prefix=prefix)
                 print('\n\n')
     
@@ -290,7 +289,6 @@ def main(config_path):
 
 
     
-
 
 if __name__ == '__main__':
     main('configs/analysis_config.yaml')
