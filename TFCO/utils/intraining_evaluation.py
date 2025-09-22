@@ -18,7 +18,7 @@ from pathlib import Path
 
 
 class InTrainingEvaluator:
-    def __init__(self, config, path, normalization, mode: str = 'raw'):
+    def __init__(self, config, path, normalization, dataset_path, dataset_name, mode: str = 'raw'):
         """
         Initialize the evaluator.
 
@@ -39,7 +39,7 @@ class InTrainingEvaluator:
 
         if normalization == "zscore": 
             
-            self.mean, self.std = load_normalization_stats(self.path)
+            self.mean, self.std = load_normalization_stats(self.path, dataset_path, dataset_name)
 
             self.mean = torch.tensor(self.mean)
             self.std = torch.tensor(self.std)

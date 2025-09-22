@@ -270,7 +270,7 @@ def main(config_file: str):
     optimizer = optim.AdamW(model.parameters(), lr=config['scheduler']['init_lr'])
     scheduler = create_scheduler(optimizer, config)
 
-    evaluator = InTrainingEvaluator(config=config, path=path, normalization=config["normalization"])
+    evaluator = InTrainingEvaluator(config=config, path=path, normalization=config["normalization"], dataset_path=config["dataset_path"], dataset_name=config["dataset_name"][0])
 
     trainer = Trainer(
         model=model,
