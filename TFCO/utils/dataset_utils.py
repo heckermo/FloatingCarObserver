@@ -523,7 +523,7 @@ class SequenceTfcoDatasetOverlap(Dataset):
 
         # If input_tensor_list is empty, create a zero tensor --> no target vehicles in the scene
         if len(input_tensor_list) == 0:
-            input_tensor = torch.zeros(self.sequence_len, self.max_vehicles, 3)
+            input_tensor = torch.zeros(self.sequence_len, self.max_vehicles, self.input_dim, dtype=torch.float32)
         else:
             # Stack the input tensors and rearrange
             input_tensor_stacked = torch.stack(input_tensor_list)  # Shape: (num_target_vehicles, sequence_len, 7)
@@ -592,13 +592,13 @@ class SequenceTfcoDatasetOverlap(Dataset):
                 normalized_features = [1,
                         (vehicle_data["position"][0] - self.mean[0]) / self.std[0],
                         (vehicle_data["position"][1] - self.mean[1]) / self.std[1],
-                        (vehicle_data["poi_x"] - self.mean[0] / self.std[0]),
-                        (vehicle_data["poi_y"] - self.mean[1] / self.std[1]),
+                        (vehicle_data["poi_x"] - self.mean[0]) / self.std[0],
+                        (vehicle_data["poi_y"] - self.mean[1]) / self.std[1],
                         np.float32(vehicle_data["overlap_tag"]),
                         np.float32(vehicle_data["poi_id"]),
                         ]
             
-                processed_vehicle_information[vehicle_id] = torch.tensor(normalized_features)
+                processed_vehicle_information[vehicle_id] = torch.tensor(normalized_features, dtype=torch.float32)
 
             
             #If Filter is true, the vehicles are filtered according to the given paramters 
@@ -624,7 +624,7 @@ class SequenceTfcoDatasetOverlap(Dataset):
                             (vehicle_data["position"][1] - self.mean[1]) / self.std[1],
                             ]
             
-                processed_vehicle_information[vehicle_id] = torch.tensor(normalized_features)
+                processed_vehicle_information[vehicle_id] = torch.tensor(normalized_features, dtype=torch.float32)
 
             
             #If Filter is true, the vehicles are filtered according to the given paramters 
