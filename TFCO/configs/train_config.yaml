@@ -38,7 +38,8 @@ load_complete_model: null
 validation_frequency: 1
 save_frequency: 25
 
-overlap_architecture: false #If pid-2: true else: false 
+overlap_architecture: false    #If pid-2: true else false
+hierarchical_architecture: true     #If combiner: true  
 
 network_configs:
     MaskedTransformer: 

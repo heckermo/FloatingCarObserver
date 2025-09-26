@@ -30,7 +30,7 @@ def extract_basic_information(information: list):
 
 
 
-def generate_file_name(overlap_mode, sequenz_len, min_timesteps, dataset_name):
+def generate_file_name(hierarchical_mode, overlap_mode, sequenz_len, min_timesteps, dataset_name):
 
     """
     Function that generates a standardized file name (for saving models) based on dataset parameters.
@@ -45,7 +45,8 @@ def generate_file_name(overlap_mode, sequenz_len, min_timesteps, dataset_name):
     information = dataset_name.split("_")
 
     if overlap_mode:
-        print(f"Generate model path with additional overlap information\n")
+
+        print(f"Generate model path with additional overlap informations\n")
         
         city, radius, overlap, penetration_rate, point_of_interest_x, point_of_interest_y = extract_basic_information(information)
 
@@ -55,8 +56,18 @@ def generate_file_name(overlap_mode, sequenz_len, min_timesteps, dataset_name):
 
         return f"{city}_{radius}_{overlap}_{penetration_rate}_seq{sequenz_len}_mint{min_timesteps}_{number_grids}_{mode}_{datetime.now().strftime('%d-%m_%H-%M-%S')}"
     
+    elif hierarchical_mode:
+
+        print(f"Generate model path with additional hierarchical informations\n")
+
+        city, radius, overlap, penetration_rate, point_of_interest_x, point_of_interest_y = extract_basic_information(information)
+        number_grids = information[6]
+
+        return f"{city}_{radius}_{overlap}_{penetration_rate}_hx{point_of_interest_x[3:]}_hy{point_of_interest_y}_{number_grids}_seq{sequenz_len}_mint{min_timesteps}_{number_grids}_{datetime.now().strftime('%d-%m_%H-%M-%S')}"
+    
     else:
-        print(f"Generate model path without additional overlap information\n")
+
+        print(f"Generate model path without additional overlap informations\n")
         
         city, radius, overlap, penetration_rate, point_of_interest_x, point_of_interest_y = extract_basic_information(information)
 

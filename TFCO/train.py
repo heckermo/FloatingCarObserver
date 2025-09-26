@@ -109,7 +109,7 @@ class Trainer:
         return avg_val_loss
 
     def save_model(self, epoch: int):
-        save_path = os.path.join(self.path, f'model_epoch_{epoch}.pth')
+        save_path = os.path.join(self.path, "models", f'model_epoch_{epoch}.pth')
         torch.save(self.model.state_dict(), save_path)
         logging.getLogger(__name__).info(f'Model saved at {save_path}')
 
@@ -165,9 +165,15 @@ def main(config_file: str):
     if num_grids > 1:
         overlap_mode = True 
     else:
-        overlap_mode = False   
+        overlap_mode = False
 
-    filename = generate_file_name(overlap_mode, config["sequence_len"], config["min_timesteps_seen"], config["dataset_name"])
+    #Necessary for filename generation
+    if config["hierarchical_architecture"]:
+        hierarchical_mode = True
+    else:
+        hierarchical_mode = False  
+
+    filename = generate_file_name(hierarchical_mode, overlap_mode, config["sequence_len"], config["min_timesteps_seen"], config["dataset_name"])
     path = prepare_path_structure(filename, base_path='trained_models', config_file=config_file)
 
     log_file = os.path.join(path, 'training.log')
