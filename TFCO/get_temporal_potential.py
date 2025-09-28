@@ -243,6 +243,7 @@ def plot_distributions(metrics: Dict, radius: str, prefix: str):
 
         plt.figure(figsize=(6, 5))
         plt.boxplot(metrics["timesteps_lengths"], vert=True, patch_artist=True)
+        plt.xlabel(f"Radius {radius}")
         plt.ylabel("Streak Lengths")
         plt.title("Boxplot of Visibility Timesteps Lengths")
         plt.savefig(f"{prefix}_timesteps_lengths_boxplot.png", bbox_inches="tight")
