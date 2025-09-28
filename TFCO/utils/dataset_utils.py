@@ -412,7 +412,7 @@ class SequenceTfcoDatasetOverlap(Dataset):
         self.min_timesteps_seen = min_timesteps_seen
         self.normalization = normalization
 
-        self.input_dim = 7
+        self.input_dim = 5
         self.target_dim = 3
 
 
@@ -507,31 +507,53 @@ class SequenceTfcoDatasetOverlap(Dataset):
             )  # Shape: (max_vehicles, 3)
 
         # Prepare the input tensor
-        input_tensor_list = []
+
+        features = list()
+        overlap_tag = list()
+        poi_id = list()
+
         for vehicle_id in target_vehicle_ids:
-            vehicle_sequence = []
+            vehicle_sequence_features = list()
+            vehicle_sequence_overlap = list()
+            vehicle_sequence_poi = list()
+
             for sequence_datapoint_id in sequence_datapoint_ids:
                 vehicle_info = self.input_information.get(sequence_datapoint_id, {})
                 if vehicle_id in vehicle_info:
                     # Vehicle is visible in the current timestep
-                    vehicle_sequence.append(vehicle_info[vehicle_id])
+                    vehicle_sequence_features.append(vehicle_info[vehicle_id]["features"])
+                    vehicle_sequence_overlap.append(vehicle_info[vehicle_id]["overlap_tag"])
+                    vehicle_sequence_poi.append(vehicle_info[vehicle_id]["poi_id"])
                 else:
                     # Vehicle is not visible in the current timestep
-                    vehicle_sequence.append(torch.tensor([-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
-            vehicle_sequence = torch.stack(vehicle_sequence)  # Shape: (sequence_len, 7)
-            input_tensor_list.append(vehicle_sequence)
+                    vehicle_sequence_features.append(torch.tensor([-1.0, 0.0, 0.0, 0.0, 0.0], dtype=torch.float32))
+                    vehicle_sequence_overlap.append(-1)
+                    vehicle_sequence_poi.append(-1)
+
+            features.append(torch.stack(vehicle_sequence_features))  # Shape: (sequence_len, 5)
+            overlap_tag.append(torch.tensor(vehicle_sequence_overlap, dtype=torch.long))
+            poi_id.append(torch.tensor(vehicle_sequence_poi, dtype=torch.long))
 
         # If input_tensor_list is empty, create a zero tensor --> no target vehicles in the scene
-        if len(input_tensor_list) == 0:
+        if len(features) == 0:
             input_tensor = torch.zeros(self.sequence_len, self.max_vehicles, self.input_dim, dtype=torch.float32)
+            overlap_tensor = torch.full((self.sequence_len, self.max_vehicles), -1, dtype=torch.long)
+            poi_id_tensor = torch.full((self.sequence_len, self.max_vehicles), -1, dtype=torch.long)
         else:
             # Stack the input tensors and rearrange
-            input_tensor_stacked = torch.stack(input_tensor_list)  # Shape: (num_target_vehicles, sequence_len, 7)
-            input_tensor_stacked = rearrange(input_tensor_stacked, 'v s c -> s v c')  # Shape: (sequence_len, num_target_vehicles, 7)
+            input_tensor_stacked = torch.stack(features)  # Shape: (num_target_vehicles, sequence_len, 5)
+            overlap_tensor_stacked = torch.stack(overlap_tag, dim=1)
+            poi_id_tensor_stacked = torch.stack(poi_id, dim=1)
+            
+            input_tensor_stacked = rearrange(input_tensor_stacked, 'v s c -> s v c')  # Shape: (sequence_len, num_target_vehicles, 5)
             # Initialize the full input tensor with zeros
             input_tensor = torch.zeros(self.sequence_len, self.max_vehicles, self.input_dim)
+            overlap_tensor = torch.full((self.sequence_len, self.max_vehicles), -1, dtype=torch.long)
+            poi_id_tensor = torch.full((self.sequence_len, self.max_vehicles), -1, dtype=torch.long)
             # Fill in the available vehicle data
             input_tensor[:, :num_target_vehicles, :] = input_tensor_stacked
+            overlap_tensor[:, :num_target_vehicles] = overlap_tensor_stacked
+            poi_id_tensor[:, :num_target_vehicles] = poi_id_tensor_stacked
         
         # 3: vehicles currently seen in the input
         # 2: vehicles not seen at enough timesteps based on min_timesteps_seen
@@ -555,7 +577,7 @@ class SequenceTfcoDatasetOverlap(Dataset):
         # Overwrite the target tensor with the zero vehicles
         target_tensor[zero_vehicles, 0] = 0
 
-        return input_tensor, target_tensor, index
+        return {"features": input_tensor, "overlap_tag": overlap_tensor, "poi_id": poi_id_tensor}, target_tensor, index
 
     def _get_allowed_indexes(self):
         # Initialize allowed indexes
@@ -594,11 +616,15 @@ class SequenceTfcoDatasetOverlap(Dataset):
                         (vehicle_data["position"][1] - self.mean[1]) / self.std[1],
                         (vehicle_data["poi_x"] - self.mean[0]) / self.std[0],
                         (vehicle_data["poi_y"] - self.mean[1]) / self.std[1],
-                        np.float32(vehicle_data["overlap_tag"]),
-                        np.float32(vehicle_data["poi_id"]),
                         ]
+                
+                overlap_tag = int(vehicle_data["overlap_tag"])
+                poi_id = int(vehicle_data["poi_id"])
             
-                processed_vehicle_information[vehicle_id] = torch.tensor(normalized_features, dtype=torch.float32)
+                processed_vehicle_information[vehicle_id] = {"features": torch.tensor(normalized_features, dtype=torch.float32),
+                                                             "overlap_tag": overlap_tag,
+                                                             "poi_id": poi_id,
+                                                            }
 
             
             #If Filter is true, the vehicles are filtered according to the given paramters 
