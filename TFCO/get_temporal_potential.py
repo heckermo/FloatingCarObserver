@@ -206,7 +206,7 @@ def plot_temporal_potential(result_storage, sequence_length, min_timesteps_seen)
 
 
 
-def plot_distributions(metrics: Dict, prefix: str):
+def plot_distributions(metrics: Dict, radius: str, prefix: str):
     """
     Visualization of visibility ratios and timesteps lengths.
     """
@@ -224,6 +224,7 @@ def plot_distributions(metrics: Dict, prefix: str):
 
         plt.figure(figsize=(6, 5))
         plt.boxplot(metrics["vehicle_visibility_ratios"], vert=True, patch_artist=True)
+        plt.xlabel(f"Radius {radius}")
         plt.ylabel("Visibility Ratio")
         plt.title("Boxplot of Vehicle Visibility Ratios")
         plt.savefig(f"{prefix}_visibility_ratios_boxplot.png", bbox_inches="tight")
@@ -277,7 +278,7 @@ def main(config_path):
 
 
                 prefix = f'r{config["radius"]}_loop{loop}_seq{seq_len}_min{min_timesteps}_'
-                plot_distributions(plot_necessary, prefix=prefix)
+                plot_distributions(plot_necessary, radius=config["radius"], prefix=prefix)
                 print('\n\n')
     
 
