@@ -59,7 +59,12 @@ class Trainer:
 
     def process_batch(self, batch: Tuple[torch.Tensor, torch.Tensor], train: bool = True):
         input_tensor, target_tensor, indexes = batch
-        input_tensor, target_tensor = input_tensor.to(self.device), target_tensor.to(self.device)
+        
+        if isinstance(input_tensor, dict):
+            input_tensor = {k: v.to(self.device) for k, v in input_tensor.items()}
+        else:
+            input_tensor = input_tensor.to(self.device)
+        target_tensor = target_tensor.to(self.device)
 
         if self.use_scaler:
             with torch.amp.autocast(device_type=self.device.type):
@@ -223,7 +228,7 @@ def main(config_file: str):
             filter = filter_parameter
             )
         
-        model = MaskedSequenceTransformerOverlap(sequence_len=config['sequence_len'], max_vehicles=config['max_vehicles'], **network_configs['MaskedTransformer'])
+        model = MaskedSequenceTransformerOverlap(sequence_len=config['sequence_len'], max_vehicles=config['max_vehicles'], **network_configs['MaskedTransformer'], num_grids=num_grids)
 
         logger.info("Use overlap grid architectures")
     else:
