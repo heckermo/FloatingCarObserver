@@ -14,6 +14,8 @@ from sub_models.temporal_lstm import TemporalLSTM
 from sub_models.temporal_transformer import TemporalTransformer
 from sub_models.vit_encoder import init_ViT
 
+from typing import Dict
+
 logger = logging.getLogger(__name__)
 
 SUBNETWORKS = {
@@ -437,6 +439,7 @@ class MaskedSequenceTransformerOverlap(nn.Module):
     Args:
         sequence_len (int): Length of the input sequence.  # Number of sequence elements to process.
         max_vehicles (int): Maximum number of vehicles represented in the sequence.  # Constraint for sequence padding.
+        num_grids (int): Number of overlap grids for embedding.
         full_attention (bool): Whether to use full attention across all elements.  # True for full attention, False otherwise.
         vehicle_only_attention (bool): Whether to restrict attention to vehicles only the same vehicles in different time steps.  
         embed_dim (int): Dimensionality of the embedding space.  # Size of embeddings per token.
@@ -444,12 +447,17 @@ class MaskedSequenceTransformerOverlap(nn.Module):
         num_layers (int): Number of transformer layers.  # Determines the depth of the transformer.
         dropout (float): Dropout probability for regularization.  # Prevents overfitting.
         num_encoder_layers (int): Number of encoder layers.  # Layers in the encoder stack.
+        poi_embedding_dim (int): Dimensionality of POI embedding.
+        overlap_embedding_dim (int): Dimensionality of overlap embedding.
+        use_pos_embed (bool): Whether to use positional embeddings.
+        use_type_embed (bool): Whether to use type embeddings.
     """
-    def __init__(self, sequence_len: int, max_vehicles: int, full_attention: bool = False, vehicle_only_attention: bool = False,
-                 embed_dim: int = 64, num_heads: int = 8, dropout: float = 0.1, num_layers: int = 4,
-                 use_pos_embed: bool = True, use_type_embed: bool = True):
+    def __init__(self, sequence_len: int, max_vehicles: int, num_grids: int, full_attention: bool = False,
+                 vehicle_only_attention: bool = False, embed_dim: int = 64, num_heads: int = 8,
+                 dropout: float = 0.1, num_layers: int = 4, poi_embedding_dim: int = 8,
+                 overlap_embedding_dim: int = 8, use_pos_embed: bool = True, use_type_embed: bool = True):
         super(MaskedSequenceTransformerOverlap, self).__init__()
-        
+
         self.sequence_len = sequence_len
         self.max_vehicles = max_vehicles
         self.full_attention = full_attention
@@ -461,46 +469,65 @@ class MaskedSequenceTransformerOverlap(nn.Module):
         self.use_pos_embed = use_pos_embed
         self.use_type_embed = use_type_embed
 
-        # Corrected embed_dim reference
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=self.embed_dim, nhead=self.num_heads, dropout=self.dropout
-        )
-        self.transformer_encoder = nn.TransformerEncoder(
-            encoder_layer, num_layers=self.num_layers
-        )
 
-        # Embedding layers
-        self.raw_traffic_embedder = nn.Linear(7, self.embed_dim)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=self.embed_dim, nhead=self.num_heads, dropout=self.dropout)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=self.num_layers)
+
+        #Raw traffic embedding 
+        self.raw_traffic_embedder = nn.Linear(5, self.embed_dim)
 
         # Positional and type embeddings
         self.pos_embedding = nn.Embedding(self.sequence_len, self.embed_dim)
         self.type_embedding = nn.Embedding(self.max_vehicles, self.embed_dim)
 
+        # POI embedding -> Every POI gets an ID
+        self.poi_embedding = nn.Embedding(num_grids + 1, poi_embedding_dim, padding_idx=0)
+
+        # Overlap embedding -> (vehicle seen in radius before (1) or not (0))
+        self.overlap_embedding = nn.Embedding(2 + 1, overlap_embedding_dim, padding_idx=0)
+
+        # Combine all embeddings
+        self.combine = nn.Linear(embed_dim + overlap_embedding_dim + poi_embedding_dim, embed_dim)
+
+        # Prediction head to output 3 values per vehicle
         self.prediction_head = nn.Linear(self.embed_dim, 3)
-    
-    def forward(self, input_sequence: torch.Tensor):
-        batch_size, sequence_len, max_vehicles, num_features = input_sequence.shape
+
+    def forward(self, input_sequence: Dict[str, torch.Tensor]):
+        
+        features = input_sequence["features"]
+        overlap_tag = input_sequence["overlap_tag"]
+        poi_ids = input_sequence["poi_id"]
+
+        batch_size, sequence_len, max_vehicles, num_features = features.shape
         assert sequence_len == self.sequence_len
         assert max_vehicles == self.max_vehicles
-        assert num_features == 7
+        assert num_features == 5
 
         # Create a mask for zero inputs to avoid attending to zero inputs
-        zero_mask = (input_sequence.sum(dim=-1) == 0)  # Shape: (batch_size, sequence_len, max_vehicles)
-        
-        # Embed the raw traffic data
-        input_sequence = self.raw_traffic_embedder(input_sequence)  # (batch_size, sequence_len, max_vehicles, embed_dim)
-        
+        zero_mask = (features[..., 0] == -1)  # all -1 means vehicle not present
+
+        # Prepare embeddings for overlap and POI (shift +1 to = 0 as padding)
+        overlap_for_embedding = (overlap_tag + 1).clamp(min=0)
+        poi_for_embedding = (poi_ids + 1).clamp(min=0)
+
+        # Embeds raw traffic features, overlap and POI
+        features = self.raw_traffic_embedder(features)
+        overlap_embedding = self.overlap_embedding(overlap_for_embedding)
+        poi_embedding = self.poi_embedding(poi_for_embedding)
+
+        # Concat all embeddings and combine
+        concated = torch.cat([features, overlap_embedding, poi_embedding], dim=-1)
+        concated = self.combine(concated)
+
         # Flatten the sequence for the transformer
-        flattened_sequence = rearrange(input_sequence, 'b s v e -> b (s v) e')  # (batch_size, sequence_len * max_vehicles, embed_dim)
-        
-        # Create time step indices for each position in the flattened sequence
-        time_step_indices = torch.arange(sequence_len).unsqueeze(1).repeat(1, max_vehicles).view(-1).to(input_sequence.device)
-        time_step_indices = time_step_indices.unsqueeze(0).repeat(batch_size, 1)  # (batch_size, sequence_len * max_vehicles)
-        
-        # Create vehicle indices for each position
-        vehicle_indices = torch.arange(max_vehicles).unsqueeze(0).repeat(sequence_len, 1).view(-1).to(input_sequence.device)
-        vehicle_indices = vehicle_indices.unsqueeze(0).repeat(batch_size, 1)  # (batch_size, sequence_len * max_vehicles)
-        
+        flattened_sequence = rearrange(concated, 'b s v e -> b (s v) e')
+
+        # Create time step and vehicle indices
+        time_step_indices = torch.arange(sequence_len).unsqueeze(1).repeat(1, max_vehicles).view(-1).to(features.device)
+        time_step_indices = time_step_indices.unsqueeze(0).repeat(batch_size, 1)
+        vehicle_indices = torch.arange(max_vehicles).unsqueeze(0).repeat(sequence_len, 1).view(-1).to(features.device)
+        vehicle_indices = vehicle_indices.unsqueeze(0).repeat(batch_size, 1)
+
         # Create attention masks
         time_step_diff = time_step_indices.unsqueeze(2) != time_step_indices.unsqueeze(1)
         vehicle_diff = vehicle_indices.unsqueeze(2) != vehicle_indices.unsqueeze(1)
@@ -529,22 +556,16 @@ class MaskedSequenceTransformerOverlap(nn.Module):
         attention_mask = attention_mask.unsqueeze(1).repeat(1, self.num_heads, 1, 1)
         attention_mask = attention_mask.view(batch_size * self.num_heads, sequence_len * max_vehicles, sequence_len * max_vehicles)
 
-        vehicle_indices = torch.arange(self.max_vehicles).unsqueeze(0).repeat(self.sequence_len, 1).view(-1).to(input_sequence.device)
-        vehicle_indices = vehicle_indices.unsqueeze(0).repeat(batch_size, 1)
-
-        time_step_indices = torch.arange(self.sequence_len).unsqueeze(1).repeat(1, self.max_vehicles).view(-1).to(input_sequence.device)
-        time_step_indices = time_step_indices.unsqueeze(0).repeat(batch_size, 1)  # Shape: (batch_size, sequence_len * max_vehicles)
-
         # Add positional and type embeddings
-        if self.use_pos_embed:  
+        if self.use_pos_embed:
             pos_embed = self.pos_embedding(time_step_indices)  # (batch_size, sequence_len * max_vehicles, embed_dim)
         else:
-            pos_embed = torch.zeros(batch_size, sequence_len * max_vehicles, self.embed_dim).to(input_sequence.device)
+            pos_embed = torch.zeros(batch_size, sequence_len * max_vehicles, self.embed_dim).to(features.device)
         
         if self.use_type_embed:
             type_embed = self.type_embedding(vehicle_indices) # (batch_size, sequence_len * max_vehicles, embed_dim)
         else:
-            type_embed = torch.zeros(batch_size, sequence_len * max_vehicles, self.embed_dim).to(input_sequence.device)
+            type_embed = torch.zeros(batch_size, sequence_len * max_vehicles, self.embed_dim).to(features.device)
 
         flattened_sequence = flattened_sequence + pos_embed + type_embed
 
