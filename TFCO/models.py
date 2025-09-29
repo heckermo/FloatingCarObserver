@@ -474,7 +474,7 @@ class MaskedSequenceTransformerOverlap(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=self.num_layers)
 
         #Raw traffic embedding 
-        self.raw_traffic_embedder = nn.Linear(5, self.embed_dim)
+        self.raw_traffic_embedder = nn.Linear(3, self.embed_dim)
 
         # Positional and type embeddings
         self.pos_embedding = nn.Embedding(self.sequence_len, self.embed_dim)
@@ -501,14 +501,17 @@ class MaskedSequenceTransformerOverlap(nn.Module):
         batch_size, sequence_len, max_vehicles, num_features = features.shape
         assert sequence_len == self.sequence_len
         assert max_vehicles == self.max_vehicles
-        assert num_features == 5
+        assert num_features == 3
 
         # Create a mask for zero inputs to avoid attending to zero inputs
-        zero_mask = (features[..., 0] == -1)  # all -1 means vehicle not present
+        zero_mask = (features.sum(dim=-1) == 0)  
 
         # Prepare embeddings for overlap and POI (shift +1 to = 0 as padding)
-        overlap_for_embedding = (overlap_tag + 1).clamp(min=0)
-        poi_for_embedding = (poi_ids + 1).clamp(min=0)
+        overlap_for_embedding = overlap_tag.clone()
+        overlap_for_embedding[overlap_for_embedding < 0] = 0  # -> Padding 0
+        
+        poi_for_embedding = poi_ids.clone()
+        poi_for_embedding[poi_for_embedding < 0] = 0  # -> Padding 0 
 
         # Embeds raw traffic features, overlap and POI
         features = self.raw_traffic_embedder(features)
